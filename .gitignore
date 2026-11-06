@@ -1,0 +1,14 @@
+node_modules/
+dist/
+out/
+*.log
+.env
+.env.*
+*.db
+*.sqlite
+# Flutter / Android
+apps/android/build/
+apps/android/.dart_tool/
+apps/android/local.properties
+*.jks
+*.keystore
