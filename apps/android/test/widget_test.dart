@@ -1,30 +1,24 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:solo_android/link/link_client.dart';
+import 'package:solo_android/link/proof.dart';
 import 'package:solo_android/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  // Identical vectors to apps/desktop/src/main/link/link.test.ts
+  test('pairProof matches desktop vector', () {
+    expect(pairProof('123456', '00112233445566778899aabbccddeeff', 'phone-00001', 'ab' * 32),
+        'bb71c28157b8a9dedf480cb8cd33f8061bb64aad0a1d7c14c4d50c1d5c4a7d82');
+  });
+  test('authProof matches desktop vector', () {
+    expect(authProof('cd' * 32, '00112233445566778899aabbccddeeff', 'phone-00001'),
+        '916e027001e174024860983336d1c1b850e3f939968c9e9bf5c7718507d9c0fd');
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('shell shows unpaired state and navigates to Devices', (tester) async {
+    await tester.pumpWidget(SoloApp(link: LinkClient()));
+    expect(find.text('Not paired'), findsOneWidget);
+    await tester.tap(find.text('Devices'));
     await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Pair with desktop'), findsOneWidget);
   });
 }

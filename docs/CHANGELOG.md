@@ -6,3 +6,8 @@
 - Docs: REQUIREMENTS, ARCHITECTURE, ROADMAP, DATABASE, API, SECURITY, TESTING.
 - `@solo/desktop`: Electron + React + TS shell (context isolation, sandbox, CSP, all permission requests denied), design tokens, voice orb preview. Builds cleanly.
 - `apps/android`: Flutter scaffold (default template; analyze + test pass). Note: `flutter` needs `--no-version-check` here (git tag fetch fails on this machine).
+
+## 0.2.0 - Unreleased (Phase 2)
+- Protocol: `auth.challenge`, `auth.hello`, `auth.ok`, `pair.reject`; `pair.accept` now carries `authToken` (publicKey removed, replaced by TLS cert pinning).
+- Desktop: `LinkServer` (wss, pairing, token auth), `DeviceStore`, mDNS advertise, shell UI with working Devices screen.
+- Android: Flutter shell, link client, pairing + discovery UI, INTERNET/multicast permissions.

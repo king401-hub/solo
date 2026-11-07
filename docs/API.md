@@ -1,18 +1,8 @@
-# Solo — API / Wire Protocol
 
-Source of truth: `packages/shared/src/protocol.ts` (protocol v1).
-
-Transport: WebSocket (TLS). Each frame is a JSON `Envelope`: `{ v, id, ts, from, type, payload }`.
-
-| type | direction | purpose |
-|---|---|---|
-| `pair.request` / `pair.accept` | either | pairing handshake (device info, public key, code proof) |
-| `heartbeat` | either | liveness, battery |
-| `notification.sync` | android → windows | notification mirror (app, sender, text, canReply, removed) |
-| `task.dispatch` / `task.update` | either | route a task to an agent; report status |
-| `sync.delta` | either | row-level sync, last-writer-wins |
-
-Rules: receivers MUST validate with `parseEnvelope`; drop on failure. Major version mismatch → refuse connection.
-Planned: `notification.reply`, `media.state/command`, `call.*`, `screen.signal` (WebRTC SDP/ICE).
-
-OpenRouter: standard chat-completions endpoint, called only from the desktop main process.
+## Link handshake (v1)
+Server: `wss://<desktop-ip>:47821` (falls back to a random port; advertised as mDNS `_solo._tcp` with TXT `id`, `fp`).
+- Pair proof: `hex(HMAC-SHA256(key=utf8(code), "solo-pair-v1|<nonce>|<deviceId>|<certSha256 lowercase hex, no colons>"))`
+- Auth proof: `hex(HMAC-SHA256(key=utf8(token), "solo-auth-v1|<nonce>|<deviceId>"))`
+- Reject reasons: `bad_proof | expired | locked | unknown_device | revoked | version`.
+- Test vectors (identical in TS and Dart tests): code `123456`, nonce `00112233445566778899aabbccddeeff`, deviceId `phone-00001`, cert `ab` x32 -> `bb71c281...7d82`; token `cd` x32 -> `916e0270...c0fd`.
+- Heartbeat every 15 s from phone; desktop drops silent peers after 45 s; phone reconnects with 1-30 s backoff.

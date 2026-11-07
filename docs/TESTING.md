@@ -17,3 +17,11 @@ Maintained per phase in this file as hardware is exercised (device model, Androi
 | 9 forbidden/confirm gate (unit level only) | ✔ unit |
 | 13 budget check (unit level only) | ✔ unit |
 | others | not yet testable |
+
+## Phase 2 manual checklist (needs a phone on the same Wi-Fi)
+- [ ] Desktop: Devices → Pair a new device shows code + ip:port.
+- [ ] Phone: Find desktop on Wi-Fi lists the PC (or type ip:port); correct code pairs; wrong code shows "Wrong code".
+- [ ] Desktop status dot turns green; phone Home says Connected.
+- [ ] Toggle Wi-Fi off/on on phone: reconnects without re-pairing.
+- [ ] Revoke on desktop: phone drops and shows revoked.
+- [ ] Windows Firewall prompt on first launch: allow private networks only.

@@ -22,20 +22,50 @@ const base = {
   from: z.string().min(1), // sender deviceId
 };
 
+/**
+ * Link handshake (see docs/SECURITY.md "Pairing"):
+ *  1. Client opens wss:// to the desktop. Desktop sends `auth.challenge` with a fresh nonce.
+ *  2. First time: client sends `pair.request` with proof = HMAC-SHA256(key=utf8(code),
+ *     msg="solo-pair-v1|nonce|deviceId|certSha256")  (hex). certSha256 is the TLS cert fingerprint
+ *     the client actually observed, so a man-in-the-middle cannot produce a valid proof.
+ *     Desktop replies `pair.accept` with a long-term `authToken`, or `pair.reject`.
+ *  3. Later: client sends `auth.hello` with proof = HMAC-SHA256(key=utf8(authToken),
+ *     msg="solo-auth-v1|nonce|deviceId") (hex). Desktop replies `auth.ok` or `pair.reject`.
+ */
+export const AuthChallenge = z.object({
+  ...base,
+  type: z.literal("auth.challenge"),
+  payload: z.object({ nonce: z.string().min(16), device: DeviceInfo }),
+});
+
 export const PairRequest = z.object({
   ...base,
   type: z.literal("pair.request"),
-  payload: z.object({
-    device: DeviceInfo,
-    publicKey: z.string(), // base64 X25519/Ed25519 public key
-    pairingCodeProof: z.string(), // HMAC over the short code shown on the other device
-  }),
+  payload: z.object({ device: DeviceInfo, pairingCodeProof: z.string() }),
 });
 
 export const PairAccept = z.object({
   ...base,
   type: z.literal("pair.accept"),
-  payload: z.object({ device: DeviceInfo, publicKey: z.string() }),
+  payload: z.object({ device: DeviceInfo, authToken: z.string().min(32) }),
+});
+
+export const AuthHello = z.object({
+  ...base,
+  type: z.literal("auth.hello"),
+  payload: z.object({ device: DeviceInfo, proof: z.string() }),
+});
+
+export const AuthOk = z.object({
+  ...base,
+  type: z.literal("auth.ok"),
+  payload: z.object({ device: DeviceInfo }),
+});
+
+export const PairReject = z.object({
+  ...base,
+  type: z.literal("pair.reject"),
+  payload: z.object({ reason: z.enum(["bad_proof", "expired", "locked", "unknown_device", "revoked", "version"]) }),
 });
 
 export const Heartbeat = z.object({
@@ -87,8 +117,12 @@ export const SyncDelta = z.object({
 });
 
 export const Envelope = z.discriminatedUnion("type", [
+  AuthChallenge,
   PairRequest,
   PairAccept,
+  AuthHello,
+  AuthOk,
+  PairReject,
   Heartbeat,
   NotificationSync,
   TaskDispatch,
