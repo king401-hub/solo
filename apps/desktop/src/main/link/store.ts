@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from "
 import { dirname } from "node:path";
 import type { DeviceInfo } from "@solo/shared";
 
-export interface PairedDevice { device: DeviceInfo; token: string; pairedAt: number; lastSeen?: number; revoked?: boolean }
+export interface PairedDevice { device: DeviceInfo; token: string; pairedAt: number; lastSeen?: number; revoked?: boolean; alias?: string }
 
 /** Paired devices persisted as JSON (atomic write). Tokens are secrets: never log or send to the renderer. */
 export class DeviceStore {
@@ -23,6 +23,9 @@ export class DeviceStore {
   list() { return [...this.devices.values()]; }
   add(device: DeviceInfo, token: string) { this.devices.set(device.deviceId, { device, token, pairedAt: Date.now() }); this.save(); }
   touch(id: string) { const d = this.devices.get(id); if (d) { d.lastSeen = Date.now(); this.save(); } }
+  /** Name reported by the device itself. Does not override a user-chosen alias. */
+  setReportedName(id: string, name: string) { const d = this.devices.get(id); if (d && d.device.name !== name) { d.device.name = name; this.save(); } }
+  setAlias(id: string, alias: string) { const d = this.devices.get(id); if (d) { d.alias = alias.trim().slice(0, 80) || undefined; this.save(); } }
   revoke(id: string) { const d = this.devices.get(id); if (d) { d.revoked = true; this.save(); } }
   remove(id: string) { this.devices.delete(id); this.save(); }
 }

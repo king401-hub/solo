@@ -44,6 +44,24 @@ export const PairRequest = z.object({
   payload: z.object({ device: DeviceInfo, pairingCodeProof: z.string() }),
 });
 
+/**
+ * Code-free pairing ("pair.ask"): client asks to be paired; the desktop user approves (or auto-approves if they
+ * enabled it). Both screens can show sas = first 4 digits of SHA-256("solo-sas-v1|nonce|certSha256") so the user can
+ * confirm the phone and PC saw the same certificate. Only accepted from private-network addresses.
+ */
+export const PairAsk = z.object({
+  ...base,
+  type: z.literal("pair.ask"),
+  payload: z.object({ device: DeviceInfo }),
+});
+
+/** Authenticated device renames itself; desktop updates its label. */
+export const DeviceRename = z.object({
+  ...base,
+  type: z.literal("device.rename"),
+  payload: z.object({ name: z.string().min(1).max(80) }),
+});
+
 export const PairAccept = z.object({
   ...base,
   type: z.literal("pair.accept"),
@@ -65,7 +83,7 @@ export const AuthOk = z.object({
 export const PairReject = z.object({
   ...base,
   type: z.literal("pair.reject"),
-  payload: z.object({ reason: z.enum(["bad_proof", "expired", "locked", "unknown_device", "revoked", "version"]) }),
+  payload: z.object({ reason: z.enum(["bad_proof", "expired", "locked", "unknown_device", "revoked", "version", "denied", "busy", "forbidden"]) }),
 });
 
 export const Heartbeat = z.object({
@@ -119,6 +137,8 @@ export const SyncDelta = z.object({
 export const Envelope = z.discriminatedUnion("type", [
   AuthChallenge,
   PairRequest,
+  PairAsk,
+  DeviceRename,
   PairAccept,
   AuthHello,
   AuthOk,

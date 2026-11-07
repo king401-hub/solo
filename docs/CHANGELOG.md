@@ -11,3 +11,12 @@
 - Protocol: `auth.challenge`, `auth.hello`, `auth.ok`, `pair.reject`; `pair.accept` now carries `authToken` (publicKey removed, replaced by TLS cert pinning).
 - Desktop: `LinkServer` (wss, pairing, token auth), `DeviceStore`, mDNS advertise, shell UI with working Devices screen.
 - Android: Flutter shell, link client, pairing + discovery UI, INTERNET/multicast permissions.
+
+## 0.2.1 - Unreleased
+- Protocol: `pair.ask`, `device.rename`; new reject reasons `denied`, `busy`, `forbidden`.
+- Desktop: rename (self + devices), pairing approval cards with confirmation code, auto-approve switch.
+- Android: rename, code-free pairing, auto-pair switch, foreground service keeping the link alive, IP-change tracking.
+
+## 0.3.0 - Unreleased (Phase 3)
+- Shared: voice settings, wake matcher, voice state machine, audio segmenter/resampler.
+- Desktop: local Whisper STT, Windows TTS, mic capture + permission gating, Voice screen; Home orb reflects live voice state.

@@ -3,3 +3,6 @@ export * from "./tasks";
 export * from "./permissions";
 export * from "./models";
 export * from "./memory";
+
+export * from "./voice";
+export * from "./vad";

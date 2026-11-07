@@ -1,12 +1,15 @@
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
-import { Orb, type OrbState } from "./Orb";
+import { Orb } from "./Orb";
+import { Voice, orbFor } from "./voice/Voice";
+import { useVoice } from "./voice/useVoice";
 import { Devices, useLink } from "./Devices";
 import "./tokens.css";
 import "./shell.css";
 
 const SCREENS = [
   { id: "home", label: "Home", phase: 0 },
+  { id: "voice", label: "Voice", phase: 3 },
   { id: "conversation", label: "Conversation", phase: 4 },
   { id: "memory", label: "Memory", phase: 5 },
   { id: "tasks", label: "Tasks", phase: 6 },
@@ -17,10 +20,8 @@ const SCREENS = [
   { id: "settings", label: "Settings", phase: 11 },
 ] as const;
 type ScreenId = (typeof SCREENS)[number]["id"];
-const STATES: OrbState[] = ["idle", "listening", "thinking", "speaking", "muted"];
-
 function Home() {
-  const [state, setState] = useState<OrbState>("idle");
+  const v = useVoice();
   const snap = useLink();
   const online = snap?.devices.filter((d) => d.online).length ?? 0;
   return (
@@ -28,12 +29,7 @@ function Home() {
       <h1>Solo</h1>
       <p className="sub">{online > 0 ? `${online} device${online > 1 ? "s" : ""} connected` : "No device connected"}</p>
       <div className="card" style={{ padding: 40 }}>
-        <Orb state={state} />
-        <nav style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 24 }} aria-label="Preview orb states (voice arrives in Phase 3)">
-          {STATES.map((s) => (
-            <button key={s} className={`btn ${s === state ? "primary" : ""}`} onClick={() => setState(s)} aria-pressed={s === state}>{s}</button>
-          ))}
-        </nav>
+        <Orb state={orbFor(v.phase)} />
       </div>
     </>
   );
@@ -65,7 +61,7 @@ function App() {
         ))}
       </nav>
       <main className="main">
-        {screen === "home" ? <Home /> : screen === "devices" ? <Devices /> : <Planned label={cur.label} phase={cur.phase} />}
+        {screen === "home" ? <Home /> : screen === "devices" ? <Devices /> : screen === "voice" ? <Voice /> : <Planned label={cur.label} phase={cur.phase} />}
       </main>
     </div>
   );

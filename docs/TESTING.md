@@ -25,3 +25,20 @@ Maintained per phase in this file as hardware is exercised (device model, Androi
 - [ ] Toggle Wi-Fi off/on on phone: reconnects without re-pairing.
 - [ ] Revoke on desktop: phone drops and shows revoked.
 - [ ] Windows Firewall prompt on first launch: allow private networks only.
+
+## Phase 2.1 manual checklist (phone + PC)
+- [ ] Rename this phone on the phone; the PC list updates (also after reconnect).
+- [ ] Rename a phone from the PC; the PC shows the alias.
+- [ ] Rename the PC from Devices; the phone shows the new name after reconnect.
+- [ ] Unpaired phone, "Ask my PC to pair": PC shows card with same 4-digit code as the phone; Approve pairs; Deny shows "denied".
+- [ ] Desktop auto-pair on + phone auto-pair on: phone pairs by itself within ~20 s of opening the app.
+- [ ] Close the Android app from recents: PC still shows it connected (notification stays).
+- [ ] Huawei/EMUI: Settings > Battery > App launch > Solo > manage manually (allow auto-launch, secondary launch, run in background).
+
+## Phase 3 manual checklist
+- [ ] Voice > Turn microphone on: first run downloads the model, then Windows mic indicator appears; Off removes it.
+- [ ] Say "Hey Solo, what's the time": Heard log shows "for Solo", Solo replies "I heard: ..." (echo until Phase 4).
+- [ ] Say a normal sentence without the wake word: log shows "ignored".
+- [ ] Talk over Solo's reply: speech stops (barge-in).
+- [ ] "Hey Solo" alone: Solo says "Yes?" and takes the next sentence without a wake word.
+- [ ] Choose another microphone / voice / speed; settings persist after restart; mic stays OFF after restart.

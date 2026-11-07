@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 
 export const PAIR_CODE_TTL_MS = 2 * 60_000;
 export const PAIR_MAX_ATTEMPTS = 5;
@@ -34,4 +34,21 @@ export class PairingSession {
     this.attempts++;
     return "bad_proof";
   }
+}
+
+/** 4-digit confirmation shown on both screens during code-free pairing. Binds nonce and the TLS cert the viewer saw. */
+export function sas(nonce: string, certSha256: string): string {
+  const h = createHash("sha256").update(`solo-sas-v1|${nonce}|${certSha256}`).digest();
+  return String(h.readUInt32BE(0) % 10000).padStart(4, "0");
+}
+
+/** True for loopback, RFC1918, link-local and CGNAT-free private ranges (IPv4, incl. ::ffff: mapped). */
+export function isPrivateAddress(addr: string | undefined): boolean {
+  if (!addr) return false;
+  const a = addr.replace(/^::ffff:/, "");
+  if (a === "::1" || a.startsWith("fe80:") || /^f[cd][0-9a-f]{2}:/i.test(a)) return true;
+  const m = a.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return false;
+  const [x, y] = [Number(m[1]), Number(m[2])];
+  return x === 10 || x === 127 || (x === 172 && y >= 16 && y <= 31) || (x === 192 && y === 168) || (x === 169 && y === 254);
 }

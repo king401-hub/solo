@@ -31,3 +31,15 @@ Threats: rogue device on LAN, prompt injection (web pages/notifications telling 
 - Tokens: desktop `devices.json` (mode 0600, plaintext on disk; not encrypted at rest yet) and Android secure storage. Tokens never go to the renderer or logs.
 - Frames are schema-validated; nothing but `auth.hello` / `pair.request` is accepted before authentication; an authenticated socket cannot spoof another device id.
 - Known gaps: desktop token file not OS-keychain protected; pairing code is typed manually (no QR); remote (non-LAN) link is Phase 11; user-level login/guest sessions are Phase 11 (Phase 2 authenticates devices only).
+
+## Automatic pairing (Phase 2.1)
+- Two independent opt-in switches, both OFF by default: desktop "Pair devices on this network automatically" (skip approval) and phone "Pair automatically on this network" (ask the first desktop found without tapping).
+- With both off, a phone must be tapped by the phone owner AND approved on the desktop after comparing a 4-digit code; a man-in-the-middle presenting a different certificate produces a different code.
+- With the desktop switch on, any device on the same private network can pair without any check. Trust-on-first-use applies; do not enable on shared or public Wi-Fi. `pair.ask` from non-private addresses is refused.
+- Phone side: auto-ask pairs with the first Solo desktop discovered. A rogue "Solo" advertiser on the LAN could be paired with if both the phone switch is on and that peer accepts; leave it off on untrusted networks. After "Unpair" the phone will not auto-ask again for 5 minutes.
+- The Android foreground service keeps the link alive in the background; the token lives in Android secure storage.
+
+## Microphone (Phase 3)
+- Windows mic access is denied by default. Electron grants `media` (audio only, our own UI only) only while the user has the mic switched on in Solo; switching it off stops all tracks and revokes the grant.
+- The mic never auto-starts at launch (the saved `micEnabled` is ignored on load).
+- Audio stays on-device: speech is segmented locally, sent only over in-process IPC to the local Whisper model, never to a network service. Ambient speech without a wake word (outside the follow-up window) is transcribed locally for the on-screen log and then discarded; it is never submitted or stored.

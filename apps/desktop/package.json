@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "@solo/shared": "*",
     "bonjour-service": "^1.4.4",
     "react": "^18.3.1",

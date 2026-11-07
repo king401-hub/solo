@@ -6,7 +6,7 @@ Status: ☐ not started · ◐ in progress · ☑ done (tested)
 |---|---|---|
 | 1 Foundation | Repo, architecture docs, shared contracts, security foundations, design tokens, desktop+Android scaffolds | ☑ done (design tokens + orb are desktop only; Dart contract mirror deferred to Phase 2) |
 | 2 Connected apps | Desktop shell, Android shell, pairing, auth, LAN link | ◐ built and unit/integration tested; phone-to-desktop on real hardware not yet tested |
-| 3 Voice engine | Wake word, STT, TTS, interruption | ☐ |
+| 3 Voice engine | Wake word, STT, TTS, interruption | ◐ built; speech recognition verified on real audio; live-microphone use not yet tested |
 | 4 Conversational AI | OpenRouter client, conversations, routing, fallback | ☐ |
 | 5 Memory | 4 categories, embeddings, management UI | ☐ |
 | 6 Agentic automation | Windows/Android agents, orchestrator, docs generation | ☐ |
@@ -29,3 +29,15 @@ Status: ☐ not started · ◐ in progress · ☑ done (tested)
 **Not tested:** Dart `LinkClient` against the real desktop (needs a device/emulator); mDNS discovery on a real network; Windows Firewall prompt; reconnect after Wi-Fi drop on hardware; desktop and phone UI visually (no screenshot review).
 **Known limitations:** device tokens are plaintext on desktop disk; manual code/address entry (no QR); offline sync/conflict resolution not built yet; user login deferred to Phase 11 (Phase 2 authenticates devices only); no Android background service, so the link only runs while the app is open.
 **Next:** Phase 3 - voice engine.
+
+## Phase 2.1 - report (rename, auto-pair, background link)
+**Completed:** rename for this PC, paired phones (desktop alias) and this phone; code-free pairing (`pair.ask`) with desktop approve/deny and 4-digit confirmation code; opt-in auto-approve on desktop and opt-in auto-ask on phone; mDNS discovery also tracks IP changes; Android foreground service hosts the link so it survives closing the app.
+**Tests performed:** 10 new desktop tests (ask approve/deny/auto/disconnect/limits, rename, private-address check, SAS); Dart SAS vector + state serialization tests; desktop and Android analysis clean; Android release APK built (17.5 MB).
+**Not tested:** installing/running the new APK (phone was not visible to adb); the foreground service on real hardware (Huawei background restrictions are expected to need the manual battery setting); mDNS discovery; auto-pair end to end.
+
+## Phase 3 - report (voice engine)
+**Completed:** voice settings, wake-phrase matcher ("Hey Solo"/"Hey Solomon", optional bare "Solo", mis-hearing aliases, wake word must lead the sentence), voice state machine (off/idle/listening/thinking/speaking; barge-in; follow-up window; nothing submitted while the mic is off; ambient speech dropped), energy-based utterance segmenter with pre-roll, resampler, local Whisper (tiny.en, q8) via transformers.js in the main process, Windows voices for speech output (voice/speed selectable), mic capture via AudioWorklet, mic permission gated by an in-app switch, Voice screen (mic switch, status orb, heard log, mic/voice/speed/follow-up settings).
+**Tests performed:** 16 unit tests (wake matching, state machine, segmenter, resample); 2 cleanup tests; real-speech check with a Windows-synthesised WAV through Whisper in plain Node and inside Electron 33 (transcribed "Hey Solo, Open Chrome, and search for Dango documentation." and an ambient sentence; wake matcher woke on the first and ignored the second). First model load ~1 min including ~40 MB download, then ~3 s per utterance on this CPU.
+**Not tested:** live microphone capture, echo-cancelled barge-in, device switching, speech output through the UI (needs a person at the PC; see TESTING.md).
+**Known limitations:** wake word is detected by transcribing speech and matching text, not a dedicated openWakeWord/Porcupine model, so it costs CPU whenever someone speaks and may miss or false-trigger more than a trained detector (dedicated detector is a later upgrade); one utterance is transcribed at a time (speech during transcription is dropped); speaker selection follows the Windows default (Chromium speech synthesis cannot be routed per device); Piper TTS not integrated; no phone-side voice yet; spoken replies are an echo ("I heard: ...") until Phase 4.
+**Next:** Phase 4 - conversational AI (OpenRouter).
