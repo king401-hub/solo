@@ -43,3 +43,9 @@ Threats: rogue device on LAN, prompt injection (web pages/notifications telling 
 - Windows mic access is denied by default. Electron grants `media` (audio only, our own UI only) only while the user has the mic switched on in Solo; switching it off stops all tracks and revokes the grant.
 - The mic never auto-starts at launch (the saved `micEnabled` is ignored on load).
 - Audio stays on-device: speech is segmented locally, sent only over in-process IPC to the local Whisper model, never to a network service. Ambient speech without a wake word (outside the follow-up window) is transcribed locally for the on-screen log and then discarded; it is never submitted or stored.
+
+## Background listening (Phase 3.2)
+- Everything is opt-in and visible: the desktop microphone switch (and the separate "turn on automatically at start" option), the Windows microphone indicator, the tray icon; on Android the listen switch, the permission prompt, the persistent notification with a Stop button and Android's microphone indicator.
+- Audio never leaves the device: desktop uses local Whisper, phone uses offline Vosk; nothing is stored. Only the text of what was heard is kept (last few lines, for the on-screen log).
+- Two-stage detection on the phone limits false triggers. Ambient speech without a wake phrase is dropped.
+- Solo does not execute anything from voice yet (Phase 6 will add confirmation for consequential actions).

@@ -25,3 +25,6 @@
 - Sync engine (shared + Dart), `sync.delta` now carries `by`; protocol schema export renamed `SyncDeltaMsg`.
 - Voice: female default voice (`voiceGender`), synced assistant settings, phone Settings screen.
 - Fix: microphone start failed because Vite inlined the audio worklet as a data: URL (blocked by CSP).
+
+## 0.3.2 - Unreleased
+- Wake: "Hi Solo", bare "Solo"/"Solomon" (quick activation default on). Desktop tray + background mode, start with Windows, auto microphone (opt-in). Phone: WakeService (Vosk, TTS), listen switch, permission flow, bundled offline model.

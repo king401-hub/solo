@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Segmenter, initialVoice, matchWake, resample, stepVoice, type VoiceEvent, type VoiceState } from "./index";
+import { Segmenter, VoiceSettings, initialVoice, matchWake, resample, stepVoice, type VoiceEvent, type VoiceState } from "./index";
 
 describe("matchWake", () => {
   it("matches both wake words and returns the request", () => {
@@ -18,9 +18,23 @@ describe("matchWake", () => {
     expect(matchWake("hello there everyone").matched).toBe(false);
     expect(matchWake("").matched).toBe(false);
   });
-  it("bare Solo only with quick activation", () => {
+  it("bare Solo / Solomon only with quick activation", () => {
     expect(matchWake("solo open chrome").matched).toBe(false);
     expect(matchWake("solo open chrome", { quickWord: true })).toEqual({ matched: true, rest: "open chrome" });
+    expect(matchWake("Solomon, what time is it", { quickWord: true })).toEqual({ matched: true, rest: "what time is it" });
+    expect(matchWake("Solo.", { quickWord: true })).toEqual({ matched: true, rest: "" });
+  });
+  it("Hi Solo / Hi Solomon wake like Hey", () => {
+    expect(matchWake("Hi Solo, good morning")).toEqual({ matched: true, rest: "good morning" });
+    expect(matchWake("hi solomon")).toEqual({ matched: true, rest: "" });
+  });
+  it("a bare Hi or a mid-sentence Solo does not wake", () => {
+    expect(matchWake("Hi", { quickWord: true }).matched).toBe(false);
+    expect(matchWake("hi everyone", { quickWord: true }).matched).toBe(false);
+    expect(matchWake("I think solo is great", { quickWord: true }).matched).toBe(false);
+  });
+  it("quick activation is on by default in settings", () => {
+    expect(VoiceSettings.parse({}).quickWord).toBe(true);
   });
 });
 

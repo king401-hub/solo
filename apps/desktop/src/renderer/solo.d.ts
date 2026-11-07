@@ -4,6 +4,12 @@ declare global {
   interface Window {
     solo: {
       version(): Promise<string>;
+      app: {
+        getBackground(): Promise<{ runInBackground: boolean; startWithWindows: boolean; autoListen: boolean; visible: boolean }>;
+        setBackground(patch: { runInBackground?: boolean; startWithWindows?: boolean; autoListen?: boolean }): Promise<{ runInBackground: boolean; startWithWindows: boolean; autoListen: boolean }>;
+        reveal(): Promise<void>;
+        quit(): Promise<void>;
+      };
       voice: {
         setMicAllowed(on: boolean): Promise<void>;
         warmup(): Promise<{ ok: true } | { ok: false; error: string }>;

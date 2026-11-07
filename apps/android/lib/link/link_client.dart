@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'discovery.dart';
 import 'link_api.dart';
@@ -72,6 +73,17 @@ class LinkClient extends LinkApi {
       );
   static const _keep = Object();
 
+  /// Hands the synced voice settings to the native wake-word service (it reads Flutter's SharedPreferences file),
+  /// so desktop changes reach it even while the app UI is closed.
+  Future<void> _publishVoiceConfig(Map<String, dynamic>? cfg) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString('solo_voice_config', jsonEncode(cfg ?? const {}));
+    } catch (_) {
+      // best effort: the service falls back to defaults
+    }
+  }
+
   Future<String> _id() async {
     if (_deviceId != null) return _deviceId!;
     var id = await _storage.read(key: 'deviceId');
@@ -105,9 +117,11 @@ class LinkClient extends LinkApi {
       _storage.write(key: 'sync', value: sync.toJsonString());
       if (local) _send('sync.delta', d.toPayload());
       if (d.table == 'settings' && d.rowId == 'voice') {
+        _publishVoiceConfig(sync.get('settings', 'voice'));
         _set(_copy(settings: sync.get('settings', 'voice') ?? const {}, lastSync: DateTime.now().millisecondsSinceEpoch));
       }
     });
+    _publishVoiceConfig(sync.get('settings', 'voice'));
     _set(_copy(deviceName: name ?? _s.deviceName, autoPair: auto, settings: sync.get('settings', 'voice') ?? const {}));
     final host = await _storage.read(key: 'host');
     final token = await _storage.read(key: 'token');

@@ -2,22 +2,32 @@ import { app, BrowserWindow, ipcMain, session, shell } from "electron";
 import { join } from "node:path";
 import { startLink } from "./link/service";
 import { createStt } from "./voice/stt";
+import { setupBackground } from "./background";
 
 let win: BrowserWindow | undefined;
+let bg: ReturnType<typeof setupBackground> | undefined;
 
-function createWindow() {
-  win = new BrowserWindow({
+// One Solo at a time: launching it again (shortcut, wake word helper) just shows the running one.
+if (!app.requestSingleInstanceLock()) app.quit();
+
+function createWindow(): BrowserWindow {
+  const w = new BrowserWindow({
     width: 1180, height: 760, minWidth: 860, minHeight: 600,
     backgroundColor: "#0b0d12", title: "Solo",
+    show: !process.argv.includes("--hidden"), // started with Windows: stay in the tray
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
+      backgroundThrottling: false, // keep the microphone pipeline running at full speed while the window is hidden
     },
   });
-  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
-  win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("http://localhost")) e.preventDefault(); });
-  if (process.env["ELECTRON_RENDERER_URL"]) win.loadURL(process.env["ELECTRON_RENDERER_URL"]);
-  else win.loadFile(join(__dirname, "../renderer/index.html"));
+  win = w;
+  w.on("close", (e) => { bg?.interceptClose(e, w); });
+  w.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
+  w.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("http://localhost")) e.preventDefault(); });
+  if (process.env["ELECTRON_RENDERER_URL"]) w.loadURL(process.env["ELECTRON_RENDERER_URL"]);
+  else w.loadFile(join(__dirname, "../renderer/index.html"));
+  return w;
 }
 
 app.whenReady().then(async () => {
@@ -64,6 +74,12 @@ app.whenReady().then(async () => {
   ipcMain.handle("link:revoke", (_e, id: unknown) => { if (typeof id === "string") link.revoke(id); });
   ipcMain.handle("link:remove", (_e, id: unknown) => { if (typeof id === "string") link.remove(id); });
   app.on("before-quit", () => { void link.stop(); });
+
+  bg = setupBackground({ file: join(app.getPath("userData"), "background.json"), createWindow, getWindow: () => win });
+  ipcMain.handle("app:getBackground", () => ({ ...bg!.settings, visible: bg!.isVisible() }));
+  ipcMain.handle("app:setBackground", (_e, patch: unknown) => (patch && typeof patch === "object" ? bg!.set(patch as object) : bg!.settings));
+  ipcMain.handle("app:reveal", () => bg!.reveal());
+  ipcMain.handle("app:quit", () => bg!.quit());
 
   createWindow();
 });

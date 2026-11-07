@@ -10,6 +10,8 @@ export interface EngineCallbacks {
   onSubmit(text: string): void;
   /** Everything Whisper heard, even if ignored (for the on-screen log; never leaves the device). */
   onHeard(text: string, accepted: boolean): void;
+  /** Solo was addressed (wake word heard). The app uses this to bring its window forward if hidden. */
+  onWake?(): void;
   onError(msg: string): void;
 }
 
@@ -45,8 +47,8 @@ export class VoiceEngine {
   private run(fx: VoiceEffect) {
     switch (fx.type) {
       case "stop-speaking": cancelSpeech(); break;
-      case "submit": this.cb.onSubmit(fx.text); break;
-      case "prompt": void this.say("Yes?"); break;
+      case "submit": this.cb.onWake?.(); this.cb.onSubmit(fx.text); break;
+      case "prompt": this.cb.onWake?.(); void this.say("Yes?"); break;
       case "ignore": break;
     }
   }

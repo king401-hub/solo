@@ -1,17 +1,58 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import '../link/link_api.dart';
+import '../wake/wake_channel.dart';
 
 /// Assistant settings shared with the desktop. Edits here appear on the PC (and vice versa) within a moment while
 /// connected, and are merged on reconnect if either side changed them offline.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.link});
+  const SettingsScreen({super.key, required this.link, this.wake});
   final LinkApi link;
+  final WakeChannel? wake; // injectable for tests
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
   double? _rate, _follow; // live slider values while dragging
+  late final WakeChannel _wake = widget.wake ?? WakeChannel();
+  WakeStatus _ws = const WakeStatus();
+  String? _wakeMsg;
+  Timer? _poll;
+
+  Future<void> _refreshWake() async {
+    final st = await _wake.status();
+    if (mounted) setState(() => _ws = st);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshWake();
+    _poll = Timer.periodic(const Duration(seconds: 2), (_) => _refreshWake());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggleWake(bool on) async {
+    setState(() => _wakeMsg = null);
+    if (on) {
+      final r = await _wake.start();
+      if (r == 'denied') {
+        setState(() => _wakeMsg =
+            'Solo needs the microphone permission to hear its name. Allow it in Android Settings > Apps > Solo > Permissions.');
+      }
+    } else {
+      await _wake.stop();
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await _refreshWake();
+  }
 
   num _n(Map<String, dynamic> s, String k, num d) => (s[k] is num) ? s[k] as num : d;
 
@@ -89,6 +130,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             const Text('Wake words'),
             Wrap(spacing: 8, children: [for (final w in words) Chip(label: Text(w))]),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Listen for “Hey Solo” on this phone'),
+              subtitle: const Text('Say “Hey Solo”, “Hi Solo”, “Solo” or “Solomon”. Solo answers by voice without opening the app.'),
+              value: _ws.running,
+              onChanged: _toggleWake,
+            ),
+            if (_ws.running)
+              const Text('Listening. Android shows its microphone indicator and a notification while this is on. '
+                  'Audio is recognised on this phone and never stored or sent anywhere.'),
+            if (_wakeMsg != null) Text(_wakeMsg!, style: const TextStyle(color: Colors.redAccent)),
+            if (_ws.wanted && !_ws.running && _ws.micGranted)
+              const Text('Listening was stopped by Android. Open the switch again to restart it. On Huawei, also allow Solo to run in the background in Battery settings.'),
+            const SizedBox(height: 8),
+            Text('Limits: after a phone restart, or if you force-stop Solo, listening stays off until you switch it on again here.',
+                style: Theme.of(context).textTheme.bodySmall),
+            if (_ws.recent.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Recently heard'),
+              for (final h in _ws.recent.take(5))
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(h.text),
+                  trailing: Text(h.accepted ? 'for Solo' : 'ignored'),
+                ),
+            ],
           ]),
         ),
       ),

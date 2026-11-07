@@ -5,7 +5,7 @@ import { VoiceEngine } from "./engine";
 export interface HeardLine { id: number; text: string; accepted: boolean; at: number }
 interface Snapshot { phase: VoicePhase; heard: HeardLine[]; error?: string; model: "idle" | "loading" | "ready" | "failed"; modelPct: number; settings: VoiceSettings }
 
-const KEY = "solo.voice.settings";
+const KEY = "solo.voice.settings.v2"; // v2: wake defaults changed (bare "Solo"/"Solomon" on)
 function loadSettings(): VoiceSettings {
   try { return VoiceSettings.parse({ ...JSON.parse(localStorage.getItem(KEY) ?? "{}"), micEnabled: false }); } // mic never auto-starts
   catch { return VoiceSettings.parse({}); }
@@ -28,6 +28,7 @@ const engine = new VoiceEngine(
     },
     onHeard: (text, accepted) => set({ heard: [{ id: nextId++, text, accepted, at: Date.now() }, ...snap.heard].slice(0, 12) }),
     onError: (error) => set({ error }),
+    onWake: () => { void window.solo.app.reveal(); },
   },
   () => snap.settings,
 );
@@ -72,3 +73,6 @@ export const voice = {
 export function useVoice(): Snapshot {
   return useSyncExternalStore((f) => { subs.add(f); return () => { subs.delete(f); }; }, () => snap);
 }
+
+// Opt-in: start listening automatically when Solo launches (e.g. hidden at Windows start-up).
+void window.solo.app.getBackground().then((b) => { if (b.autoListen) void voice.setMic(true); });

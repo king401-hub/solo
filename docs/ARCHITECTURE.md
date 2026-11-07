@@ -71,3 +71,14 @@ SQLite (better-sqlite3) per device; embeddings stored as blobs, with brute-force
 - Android blocks apps from capturing call audio; laptop-as-headset for cellular calls needs Bluetooth HFP (phone treats laptop as headset) — spike in Phase 8.
 - Notification replies only work when the source notification exposes a RemoteInput action.
 - MediaProjection requires per-session user consent and a foreground service.
+
+## Wake word and background listening (Phase 3.2)
+**Wake phrases:** "Hey Solo", "Hi Solo", "Hey/Hi Solomon" always; bare "Solo" / "Solomon" when quick activation is on (default on). A phrase only counts at the start of an utterance; a bare "Hi" never wakes Solo. The same rules live in `packages/shared/src/voice.ts` (`matchWake`) and `WakeMatcher.kt`, with mirrored tests.
+
+**Desktop:** the renderer owns the microphone (AudioWorklet -> segmenter -> local Whisper in the main process). The main process adds a tray icon, hides the window on close instead of quitting (setting, default on), keeps the renderer unthrottled while hidden, allows a single instance (launching Solo again shows the running one), can start with Windows hidden (`--hidden`), and can turn the microphone on at start-up (opt-in). On a wake word the renderer asks main to `reveal()` the window. Quitting from the tray (or "Quit Solo completely") stops listening: a quit app cannot hear anything.
+
+**Phone:** `WakeService` (Kotlin foreground service, type microphone) listens with the offline Vosk model in two stages: a grammar-limited recognizer for the wake words, then a full recognizer over the last ~3 s of buffered audio plus live audio to confirm the phrase and capture the request. It answers with Android text-to-speech from the service and never starts an Activity, so the app is not opened. Voice settings (gender, speed, quick word, follow-up window) are synced from the desktop by the Dart link service into Flutter's SharedPreferences, which the service reads. The model (`model-en-us`, ~41 MB zipped) is bundled in the APK assets but not committed; fetch it with `apps/android/tools/fetch-vosk-model.ps1`.
+
+**Platform limits:**
+- Windows: nothing runs when Solo is fully quit. To be there after a reboot, enable "Start Solo with Windows" and "Turn the microphone on automatically".
+- Android: needs RECORD_AUDIO and a visible notification; Android 14+ only lets a microphone foreground service start while the app is visible, so it cannot start at boot; force-stopping the app ends it; Huawei/EMUI may also need "run in the background" allowed. Android shows its microphone indicator while it runs.

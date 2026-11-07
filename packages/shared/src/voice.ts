@@ -4,7 +4,7 @@ import { z } from "zod";
 export const VoiceSettings = z.object({
   micEnabled: z.boolean().default(false), // off until the user turns it on
   wakeWords: z.array(z.string().min(1)).default(["hey solo", "hey solomon"]),
-  quickWord: z.boolean().default(false), // bare "Solo" as a wake word (more false positives)
+  quickWord: z.boolean().default(true), // bare "Solo" / "Solomon" as a wake word (more false wakes than "Hey Solo")
   followUpSeconds: z.number().int().min(0).max(120).default(12), // keep listening after a reply without a wake word
   inputDeviceId: z.string().optional(),
   outputDeviceId: z.string().optional(),
@@ -52,7 +52,8 @@ export function matchWake(transcript: string, opts: { wakeWords?: string[]; quic
     }
     return null;
   };
-  return tryPrefix(names, true) ?? (opts.quickWord ? tryPrefix(SOLO_ALIASES, false) : null) ?? { matched: false, rest: "" };
+  const bare = [...SOLO_ALIASES, ...SOLOMON_ALIASES];
+  return tryPrefix(names, true) ?? (opts.quickWord ? tryPrefix(bare, false) : null) ?? { matched: false, rest: "" };
 }
 
 // ---- Voice state machine ---------------------------------------------------------------------

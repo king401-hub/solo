@@ -13,3 +13,4 @@ apps/android/local.properties
 *.jks
 *.keystore
 apps/android/android/build/
+apps/android/android/app/src/main/assets/model-en-us/

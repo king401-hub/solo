@@ -49,3 +49,17 @@ Maintained per phase in this file as hardware is exercised (device model, Androi
 - [ ] Change "Keep listening" / "Also wake on Solo" / voice gender on the phone: PC Voice screen updates.
 - [ ] Turn the phone's Wi-Fi off, change a setting on the phone, change a different one on the PC, turn Wi-Fi on: both changes appear on both.
 - [ ] Phone Settings header says "In sync with <PC name>" while connected and "Offline ..." otherwise.
+
+## Wake word / background checklist
+Desktop
+- [ ] Voice > Turn microphone on. Close the window (X): Solo icon stays in the tray; say "Hey Solo" and the window comes back and Solo answers.
+- [ ] Say "Solo" alone and "Solomon, what time is it": both wake; a sentence containing Solo mid-way does not.
+- [ ] Start Solo with Windows + auto microphone: restart Windows, Solo starts hidden in the tray and answers to "Hey Solo".
+- [ ] Tray > Quit Solo: nothing listens; relaunching works.
+Phone
+- [ ] Settings > Listen for "Hey Solo" on this phone: grants microphone, shows notification. Lock the phone / leave the app: say "Hey Solo" - hear "Yes?" without the app opening.
+- [ ] "Hey Solo, what's the weather": hear "I heard: ..." (echo until Phase 4); recently heard list updates.
+- [ ] Say normal speech without the wake phrase: listed as ignored or not listed, no reply.
+- [ ] Notification Stop button stops listening. Swipe the app from recents: listening continues. Force-stop the app: listening stops.
+- [ ] Deny the microphone permission: a clear message appears.
+- [ ] Change speech speed / voice gender on the desktop: phone replies change without opening the app.

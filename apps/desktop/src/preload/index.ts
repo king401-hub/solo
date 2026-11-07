@@ -4,6 +4,12 @@ import type { LinkSnapshot } from "../main/link/service";
 // Narrow, typed surface. Add methods here deliberately; never expose ipcRenderer itself.
 contextBridge.exposeInMainWorld("solo", {
   version: (): Promise<string> => ipcRenderer.invoke("solo:version"),
+  app: {
+    getBackground: (): Promise<{ runInBackground: boolean; startWithWindows: boolean; autoListen: boolean; visible: boolean }> => ipcRenderer.invoke("app:getBackground"),
+    setBackground: (patch: { runInBackground?: boolean; startWithWindows?: boolean; autoListen?: boolean }): Promise<{ runInBackground: boolean; startWithWindows: boolean; autoListen: boolean }> => ipcRenderer.invoke("app:setBackground", patch),
+    reveal: (): Promise<void> => ipcRenderer.invoke("app:reveal"),
+    quit: (): Promise<void> => ipcRenderer.invoke("app:quit"),
+  },
   voice: {
     setMicAllowed: (on: boolean): Promise<void> => ipcRenderer.invoke("voice:setMicAllowed", on),
     warmup: (): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke("voice:warmup"),
