@@ -122,13 +122,14 @@ export const TaskUpdate = z.object({
   }),
 });
 
-export const SyncDelta = z.object({
+export const SyncDeltaMsg = z.object({
   ...base,
   type: z.literal("sync.delta"),
   payload: z.object({
     table: z.enum(["memories", "tasks", "conversations", "settings"]),
     rowId: z.string(),
-    updatedAt: z.number().int(), // last-writer-wins by (updatedAt, deviceId)
+    updatedAt: z.number().int(), // last-writer-wins by (updatedAt, by); see sync.ts
+    by: z.string().min(1), // device that originally wrote the row (not necessarily the sender)
     deleted: z.boolean().default(false),
     data: z.record(z.unknown()).optional(),
   }),
@@ -147,7 +148,7 @@ export const Envelope = z.discriminatedUnion("type", [
   NotificationSync,
   TaskDispatch,
   TaskUpdate,
-  SyncDelta,
+  SyncDeltaMsg,
 ]);
 export type Envelope = z.infer<typeof Envelope>;
 

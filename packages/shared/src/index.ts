@@ -6,3 +6,4 @@ export * from "./memory";
 
 export * from "./voice";
 export * from "./vad";
+export * from "./sync";

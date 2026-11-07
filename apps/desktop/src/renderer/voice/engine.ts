@@ -56,7 +56,7 @@ export class VoiceEngine {
     if (this.state.phase === "off") return;
     this.replying = true;
     this.dispatch({ type: "reply.start" });
-    await speak(text, { voiceURI: this.settings().voiceURI, rate: this.settings().speechRate });
+    await speak(text, { voiceURI: this.settings().voiceURI, rate: this.settings().speechRate, gender: this.settings().voiceGender });
     this.replying = false;
     // If barge-in already moved us to "listening", don't clobber it.
     if (this.state.phase === "speaking") this.dispatch({ type: "reply.end", now: Date.now(), followUpMs: this.settings().followUpSeconds * 1000 });

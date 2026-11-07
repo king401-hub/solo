@@ -15,6 +15,8 @@ class LinkState {
     this.sas,
     this.autoPair = false,
     this.discovered = const [],
+    this.settings = const {},
+    this.lastSync,
   });
   final LinkStatus status;
   final String? lastError;
@@ -25,6 +27,9 @@ class LinkState {
   final String? sas; // set while waiting for the desktop user to approve
   final bool autoPair;
   final List<FoundDesktop> discovered;
+  /// Synced assistant settings (the shared 'voice' row): wakeWords, quickWord, followUpSeconds, speechRate, voiceGender.
+  final Map<String, dynamic> settings;
+  final int? lastSync; // epoch ms of the last sync activity
 
   bool get paired => desktopName != null;
 
@@ -38,6 +43,8 @@ class LinkState {
         'sas': sas,
         'autoPair': autoPair,
         'discovered': discovered.map((d) => d.toJson()).toList(),
+        'settings': settings,
+        'lastSync': lastSync,
       };
 
   factory LinkState.fromJson(Map<dynamic, dynamic> j) => LinkState(
@@ -50,6 +57,8 @@ class LinkState {
         sas: j['sas'] as String?,
         autoPair: j['autoPair'] as bool,
         discovered: [for (final d in (j['discovered'] as List)) FoundDesktop.fromJson(d as Map)],
+        settings: Map<String, dynamic>.from((j['settings'] ?? const {}) as Map),
+        lastSync: j['lastSync'] as int?,
       );
 }
 
@@ -67,4 +76,7 @@ abstract class LinkApi extends ChangeNotifier {
   Future<void> forget();
   Future<void> setDeviceName(String name);
   Future<void> setAutoPair(bool on);
+
+  /// Change one assistant setting (e.g. 'speechRate'); syncs to every paired device.
+  Future<void> setAssistantSetting(String key, Object value);
 }

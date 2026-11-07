@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'discovery.dart';
 import 'link_api.dart';
+import '../sync/sync_store.dart';
 import 'proof.dart';
 
 export 'link_api.dart';
@@ -36,6 +37,7 @@ class LinkClient extends LinkApi {
 
   // Secrets / identity (not part of LinkState).
   String? _token, _certFp, _desktopId, _deviceId;
+  SyncStore? _sync;
   Timer? _hb, _retry, _scan;
   WebSocket? _ws;
   int _backoffSec = 1;
@@ -52,6 +54,8 @@ class LinkClient extends LinkApi {
     Object? sas = _keep,
     bool? autoPair,
     List<FoundDesktop>? discovered,
+    Map<String, dynamic>? settings,
+    int? lastSync,
   }) =>
       LinkState(
         status: status ?? _s.status,
@@ -63,6 +67,8 @@ class LinkClient extends LinkApi {
         sas: identical(sas, _keep) ? _s.sas : sas as String?,
         autoPair: autoPair ?? _s.autoPair,
         discovered: discovered ?? _s.discovered,
+        settings: settings ?? _s.settings,
+        lastSync: lastSync ?? _s.lastSync,
       );
   static const _keep = Object();
 
@@ -93,7 +99,16 @@ class LinkClient extends LinkApi {
   Future<void> start() async {
     final name = await _storage.read(key: 'deviceName');
     final auto = await _storage.read(key: 'autoPair') == '1';
-    _set(_copy(deviceName: name ?? _s.deviceName, autoPair: auto));
+    final sync = SyncStore(await _id(), initial: SyncStore.parse(await _storage.read(key: 'sync')));
+    _sync = sync;
+    sync.onChange((d, local) {
+      _storage.write(key: 'sync', value: sync.toJsonString());
+      if (local) _send('sync.delta', d.toPayload());
+      if (d.table == 'settings' && d.rowId == 'voice') {
+        _set(_copy(settings: sync.get('settings', 'voice') ?? const {}, lastSync: DateTime.now().millisecondsSinceEpoch));
+      }
+    });
+    _set(_copy(deviceName: name ?? _s.deviceName, autoPair: auto, settings: sync.get('settings', 'voice') ?? const {}));
     final host = await _storage.read(key: 'host');
     final token = await _storage.read(key: 'token');
     final fp = await _storage.read(key: 'fp');
@@ -254,6 +269,14 @@ class LinkClient extends LinkApi {
             _hb?.cancel();
             _hb = Timer.periodic(const Duration(seconds: 15), (_) => _send('heartbeat', {}));
             _set(_copy(status: LinkStatus.connected, desktopName: name, lastError: null));
+            // Exchange full state; last-writer-wins on both sides makes them converge.
+            for (final d in _sync?.all() ?? const <SyncDelta>[]) {
+              _send('sync.delta', d.toPayload());
+            }
+            _set(_copy(lastSync: DateTime.now().millisecondsSinceEpoch));
+          case 'sync.delta':
+            final d = SyncDelta.fromPayload(pl);
+            if (d != null) _sync?.apply(d);
           case 'pair.reject':
             final r = pl['reason'] as String;
             if (r == 'revoked' || r == 'unknown_device') {
@@ -298,6 +321,15 @@ class LinkClient extends LinkApi {
     _noAskBefore = DateTime.fromMillisecondsSinceEpoch(0);
     _set(_copy(autoPair: on));
     if (on && !_s.paired) unawaited(_scanOnce());
+  }
+
+  @override
+  Future<void> setAssistantSetting(String key, Object value) async {
+    final sync = _sync;
+    if (sync == null) return;
+    final cur = Map<String, dynamic>.from(sync.get('settings', 'voice') ?? const {});
+    cur[key] = value;
+    sync.set('settings', 'voice', cur);
   }
 
   @override

@@ -40,7 +40,18 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("solo:version", () => app.getVersion());
 
-  const link = await startLink(() => win?.webContents.send("link:changed", link.snapshot()));
+  const link = await startLink(
+    () => win?.webContents.send("link:changed", link.snapshot()),
+    (d) => win?.webContents.send("sync:changed", { table: d.table, rowId: d.rowId, data: d.deleted ? undefined : d.data }),
+  );
+  const TABLES = ["settings", "memories", "tasks", "conversations"] as const;
+  type Table = (typeof TABLES)[number];
+  const table = (v: unknown): Table | undefined => TABLES.find((t) => t === v);
+  ipcMain.handle("sync:get", (_e, t: unknown, id: unknown) => { const tb = table(t); return tb && typeof id === "string" ? link.sync.get(tb, id) : undefined; });
+  ipcMain.handle("sync:set", (_e, t: unknown, id: unknown, data: unknown) => {
+    const tb = table(t);
+    if (tb && typeof id === "string" && data && typeof data === "object" && !Array.isArray(data)) link.sync.set(tb, id, data as Record<string, unknown>);
+  });
   ipcMain.handle("link:snapshot", () => link.snapshot());
   ipcMain.handle("link:startPairing", () => link.startPairing());
   ipcMain.handle("link:cancelPairing", () => link.cancelPairing());

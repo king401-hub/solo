@@ -8,7 +8,8 @@ export const VoiceSettings = z.object({
   followUpSeconds: z.number().int().min(0).max(120).default(12), // keep listening after a reply without a wake word
   inputDeviceId: z.string().optional(),
   outputDeviceId: z.string().optional(),
-  voiceURI: z.string().optional(),
+  voiceURI: z.string().optional(), // device-specific explicit choice; overrides voiceGender on this device only
+  voiceGender: z.enum(["female", "male", "any"]).default("female"), // Solo's voice, synced across devices
   speechRate: z.number().min(0.5).max(2).default(1),
 });
 export type VoiceSettings = z.infer<typeof VoiceSettings>;
@@ -123,4 +124,31 @@ export function stepVoice(
       return { state: { ...s, phase: "thinking" }, effects: [...stop, { type: "submit", text }] };
     }
   }
+}
+
+// ---- Voice choice ------------------------------------------------------------------------------
+
+/** Names of common female system voices (Windows, Android/Google, macOS). Used only to pick a default. */
+const FEMALE_NAMES = ["zira", "hazel", "susan", "aria", "jenny", "michelle", "emma", "sonia", "libby", "samantha", "eva", "heera", "catherine", "linda", "hedda", "helena", "female", "karen", "moira", "tessa", "victoria"];
+const MALE_NAMES = ["david", "mark", "george", "guy", "ryan", "james", "richard", "sean", "male", "daniel", "alex", "fred"];
+
+export interface VoiceInfoLike { name: string; lang: string; voiceURI: string }
+
+/** The voices that portable settings are about: those that sync between devices. */
+export const PORTABLE_VOICE_KEYS = ["wakeWords", "quickWord", "followUpSeconds", "speechRate", "voiceGender"] as const;
+export type PortableVoice = Pick<VoiceSettings, (typeof PORTABLE_VOICE_KEYS)[number]>;
+
+/** Pick the voice for the requested gender, preferring English. Returns undefined to use the system default. */
+export function pickVoice<T extends VoiceInfoLike>(voices: T[], gender: VoiceSettings["voiceGender"], explicitURI?: string): T | undefined {
+  const explicit = explicitURI ? voices.find((v) => v.voiceURI === explicitURI) : undefined;
+  if (explicit) return explicit;
+  if (gender === "any") return undefined;
+  const names = gender === "female" ? FEMALE_NAMES : MALE_NAMES;
+  const other = gender === "female" ? MALE_NAMES : FEMALE_NAMES;
+  const matches = (v: T, list: string[]) => list.some((n) => v.name.toLowerCase().includes(n));
+  const en = voices.filter((v) => v.lang.toLowerCase().startsWith("en"));
+  const pool = en.length ? en : voices;
+  const hit = pool.find((v) => matches(v, names) && !matches(v, other));
+  if (hit) return hit;
+  return voices.find((v) => matches(v, names) && !matches(v, other));
 }

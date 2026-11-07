@@ -1,5 +1,7 @@
 /** Spoken replies via the OS voices (Windows SAPI/OneCore through Chromium). Local, free, interruptible. */
-export interface SpeakOptions { voiceURI?: string; rate?: number }
+import { pickVoice, type VoiceSettings } from "@solo/shared";
+
+export interface SpeakOptions { voiceURI?: string; rate?: number; gender?: VoiceSettings["voiceGender"] }
 
 export function listVoices(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
@@ -16,7 +18,7 @@ export function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
     u.rate = opts.rate ?? 1;
-    const v = opts.voiceURI ? speechSynthesis.getVoices().find((x) => x.voiceURI === opts.voiceURI) : undefined;
+    const v = pickVoice(speechSynthesis.getVoices(), opts.gender ?? "female", opts.voiceURI);
     if (v) u.voice = v;
     u.onend = () => resolve();
     u.onerror = () => resolve(); // "canceled"/"interrupted" are normal on barge-in

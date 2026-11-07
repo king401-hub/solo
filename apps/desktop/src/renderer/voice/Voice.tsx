@@ -63,9 +63,16 @@ export function Voice() {
             {mics.map((m) => <option key={m.deviceId} value={m.deviceId}>{m.label || "Microphone"}</option>)}
           </select>
         </div>
-        <div className="row"><label htmlFor="vo">Voice</label>
+        <div className="row"><label htmlFor="vg">Solo&apos;s voice</label>
+          <select id="vg" style={field} value={s.voiceGender} onChange={(e) => voice.updateSettings({ voiceGender: e.target.value as "female" | "male" | "any" })}>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="any">System default</option>
+          </select>
+        </div>
+        <div className="row"><label htmlFor="vo">Specific voice (this PC only)</label>
           <select id="vo" style={field} value={s.voiceURI ?? ""} onChange={(e) => voice.updateSettings({ voiceURI: e.target.value || undefined })}>
-            <option value="">System default</option>
+            <option value="">Automatic (from Solo&apos;s voice)</option>
             {voices.map((x) => <option key={x.voiceURI} value={x.voiceURI}>{x.name}</option>)}
           </select>
         </div>
@@ -79,7 +86,7 @@ export function Voice() {
           <input id="qw" type="checkbox" checked={s.quickWord} onChange={(e) => voice.updateSettings({ quickWord: e.target.checked })} />
         </div>
         <div className="row"><span className="sub" style={{ margin: 0 }}>Hear the current voice</span>
-          <button className="btn" onClick={() => void speak("Hello, I'm Solo.", { voiceURI: s.voiceURI, rate: s.speechRate })}>Test</button>
+          <button className="btn" onClick={() => void speak("Hello, I'm Solo.", { voiceURI: s.voiceURI, rate: s.speechRate, gender: s.voiceGender })}>Test</button>
         </div>
         <p className="sub" style={{ margin: "12px 0 0", fontSize: 12 }}>Speaker selection follows the Windows default output for now.</p>
       </section>

@@ -20,3 +20,8 @@
 ## 0.3.0 - Unreleased (Phase 3)
 - Shared: voice settings, wake matcher, voice state machine, audio segmenter/resampler.
 - Desktop: local Whisper STT, Windows TTS, mic capture + permission gating, Voice screen; Home orb reflects live voice state.
+
+## 0.3.1 - Unreleased
+- Sync engine (shared + Dart), `sync.delta` now carries `by`; protocol schema export renamed `SyncDeltaMsg`.
+- Voice: female default voice (`voiceGender`), synced assistant settings, phone Settings screen.
+- Fix: microphone start failed because Vite inlined the audio worklet as a data: URL (blocked by CSP).

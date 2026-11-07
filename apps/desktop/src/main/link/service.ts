@@ -8,6 +8,8 @@ import type { DeviceInfo } from "@solo/shared";
 import { loadOrCreateCert } from "./cert";
 import { LinkServer } from "./server";
 import { DeviceStore } from "./store";
+import { createSync } from "../sync/sync";
+import type { SyncDelta } from "@solo/shared";
 
 export const LINK_PORT = 47821; // fixed so the phone can reconnect without rediscovery; falls back to random if taken
 
@@ -32,7 +34,7 @@ export interface LinkSnapshot {
   pairing?: { code: string; expiresAt: number };
 }
 
-export async function startLink(onChange: () => void) {
+export async function startLink(onChange: () => void, onSync: (d: SyncDelta, local: boolean) => void = () => {}) {
   const dir = app.getPath("userData");
   const self = loadIdentity(dir);
   const settingsFile = join(dir, "link-settings.json");
@@ -42,6 +44,7 @@ export async function startLink(onChange: () => void) {
   const store = new DeviceStore(join(dir, "devices.json"));
   const server = new LinkServer({ self, cert, store });
   server.autoApprove = !!saved.autoApprove;
+  const sync = createSync({ file: join(dir, "sync.json"), deviceId: self.deviceId, server, onChange: onSync });
   let port: number;
   try { port = await server.listen(LINK_PORT); } catch { port = await server.listen(0); }
 
@@ -63,7 +66,7 @@ export async function startLink(onChange: () => void) {
   });
 
   return {
-    snapshot, server,
+    snapshot, server, sync: sync.store,
     startPairing: () => { pairing = server.startPairing(); onChange(); return snapshot(); },
     cancelPairing: () => { server.cancelPairing(); pairing = undefined; onChange(); },
     approve: (id: string) => server.approve(id),
@@ -77,6 +80,6 @@ export async function startLink(onChange: () => void) {
     },
     revoke: (id: string) => { store.revoke(id); server.disconnect(id); onChange(); },
     remove: (id: string) => { server.disconnect(id); store.remove(id); onChange(); },
-    stop: async () => { bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
+    stop: async () => { sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
   };
 }

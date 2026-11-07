@@ -5,6 +5,7 @@ import 'link/link_api.dart';
 import 'link/link_service.dart';
 import 'ui/orb.dart';
 import 'ui/pair_screen.dart';
+import 'ui/settings_screen.dart';
 import 'ui/theme.dart';
 
 void main() {
@@ -41,7 +42,6 @@ class _ShellState extends State<Shell> {
   static const _planned = [
     ('Chat', 'Phase 4'),
     ('Tasks', 'Phase 6'),
-    ('More', 'Phase 7+'),
   ];
 
   @override
@@ -53,6 +53,7 @@ class _ShellState extends State<Shell> {
           child: switch (_tab) {
             0 => _Home(link: widget.link),
             1 => _Devices(link: widget.link),
+            4 => SettingsScreen(link: widget.link),
             _ => Center(child: Text('${_planned[_tab - 2].$1} · planned for ${_planned[_tab - 2].$2}')),
           },
         ),
@@ -64,7 +65,7 @@ class _ShellState extends State<Shell> {
             NavigationDestination(icon: Icon(Icons.devices), label: 'Devices'),
             NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
             NavigationDestination(icon: Icon(Icons.checklist), label: 'Tasks'),
-            NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
+            NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
           ],
         ),
       ),

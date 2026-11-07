@@ -42,3 +42,10 @@ Maintained per phase in this file as hardware is exercised (device model, Androi
 - [ ] Talk over Solo's reply: speech stops (barge-in).
 - [ ] "Hey Solo" alone: Solo says "Yes?" and takes the next sentence without a wake word.
 - [ ] Choose another microphone / voice / speed; settings persist after restart; mic stays OFF after restart.
+
+## Sync + voice checklist (phone + PC)
+- [ ] PC Voice > "Solo's voice": Female (default). Test button speaks with a female voice (Zira on Windows).
+- [ ] Change speech speed on the PC: phone Settings shows the new value within a few seconds.
+- [ ] Change "Keep listening" / "Also wake on Solo" / voice gender on the phone: PC Voice screen updates.
+- [ ] Turn the phone's Wi-Fi off, change a setting on the phone, change a different one on the PC, turn Wi-Fi on: both changes appear on both.
+- [ ] Phone Settings header says "In sync with <PC name>" while connected and "Offline ..." otherwise.

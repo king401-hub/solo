@@ -10,6 +10,11 @@ declare global {
         transcribe(pcm: Float32Array): Promise<string>;
         onModelProgress(cb: (pct: number) => void): () => void;
       };
+      sync: {
+        get(table: string, id: string): Promise<Record<string, unknown> | undefined>;
+        set(table: string, id: string, data: Record<string, unknown>): Promise<void>;
+        onChanged(cb: (c: { table: string; rowId: string; data?: Record<string, unknown> }) => void): () => void;
+      };
       link: {
         snapshot(): Promise<LinkSnapshot>; startPairing(): Promise<LinkSnapshot>; cancelPairing(): Promise<void>;
         approve(id: string): Promise<void>; deny(id: string): Promise<void>; setAutoApprove(on: boolean): Promise<void>;

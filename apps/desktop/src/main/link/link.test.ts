@@ -141,10 +141,10 @@ describe("link server", () => {
     server.on("message", (_id, env) => got.push(env));
     const c = connect(port); await c.open;
     const ch = await c.next();
-    c.send("sync.delta", { table: "tasks", rowId: "1", updatedAt: 1 }); // pre-auth: dropped
+    c.send("sync.delta", { table: "tasks", rowId: "1", updatedAt: 1, by: phone.deviceId, deleted: false }); // pre-auth: dropped
     c.send("auth.hello", { device: phone, proof: authProof("t".repeat(64), ch.payload.nonce, phone.deviceId) });
     await c.next();
-    c.send("sync.delta", { table: "tasks", rowId: "2", updatedAt: 2 });
+    c.send("sync.delta", { table: "tasks", rowId: "2", updatedAt: 2, by: phone.deviceId, deleted: false });
     await new Promise((r) => setTimeout(r, 100));
     expect(got.map((e) => e.payload.rowId)).toEqual(["2"]);
   });

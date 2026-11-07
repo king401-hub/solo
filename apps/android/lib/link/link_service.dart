@@ -62,6 +62,8 @@ class _LinkTaskHandler extends TaskHandler {
         await link.setDeviceName(data['name'] as String);
       case 'autoPair':
         await link.setAutoPair(data['on'] as bool);
+      case 'setting':
+        await link.setAssistantSetting(data['key'] as String, data['value'] as Object);
     }
   }
 
@@ -154,6 +156,9 @@ class RemoteLink extends LinkApi {
   Future<void> setDeviceName(String name) async => FlutterForegroundTask.sendDataToTask({'cmd': 'name', 'name': name});
   @override
   Future<void> setAutoPair(bool on) async => FlutterForegroundTask.sendDataToTask({'cmd': 'autoPair', 'on': on});
+  @override
+  Future<void> setAssistantSetting(String key, Object value) async =>
+      FlutterForegroundTask.sendDataToTask({'cmd': 'setting', 'key': key, 'value': value});
 
   @override
   void dispose() {

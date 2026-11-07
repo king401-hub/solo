@@ -14,6 +14,15 @@ contextBridge.exposeInMainWorld("solo", {
       return () => ipcRenderer.removeListener("voice:modelProgress", h);
     },
   },
+  sync: {
+    get: (table: string, id: string): Promise<Record<string, unknown> | undefined> => ipcRenderer.invoke("sync:get", table, id),
+    set: (table: string, id: string, data: Record<string, unknown>): Promise<void> => ipcRenderer.invoke("sync:set", table, id, data),
+    onChanged: (cb: (c: { table: string; rowId: string; data?: Record<string, unknown> }) => void) => {
+      const h = (_: unknown, c: { table: string; rowId: string; data?: Record<string, unknown> }) => cb(c);
+      ipcRenderer.on("sync:changed", h);
+      return () => ipcRenderer.removeListener("sync:changed", h);
+    },
+  },
   link: {
     snapshot: (): Promise<LinkSnapshot> => ipcRenderer.invoke("link:snapshot"),
     startPairing: (): Promise<LinkSnapshot> => ipcRenderer.invoke("link:startPairing"),
