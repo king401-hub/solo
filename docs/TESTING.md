@@ -87,3 +87,13 @@ Manual, REQUIRED before relying on it (needs two PCs on different internet conne
 - [ ] History: overwrite a file remotely; Files > History & recovery restores the old version.
 - [ ] Confirm node_modules, .git and *.sqlite did not sync. Check Task Manager: no syncthing.exe remains after quitting Solo.
 - [ ] Turn off public discovery and relays: sync works on the same network only.
+
+## Voice recognition (needs a person at the PC)
+- [ ] Voice > My voice > Teach Solo my voice: read the 5 sentences in a quiet room. It should say "Done".
+- [ ] Test my voice: say a full sentence. Note the match score (it needs to be above the line shown). Try again with the TV on, farther from the microphone, a bit faster, and quietly. Adjust Strictness until you are happy.
+- [ ] Say only "Hello" / "Hi" / "Good morning" (no "Solo"): Solo should answer in a time-appropriate way. Also try a bare "Hello" in different tones; very short clips can be missed.
+- [ ] Ask someone else to say "Hey Solo" and "Good morning": Solo should ignore them (the log shows "ignored (not your voice)").
+- [ ] Let Solo speak a long reply: it should not cut itself off. Talk over it: it should stop after about a second (only your voice can do this).
+- [ ] Say a sentence with Nigerian English/Pidgin ("abeg open Chrome", "how far"). Check what Solo heard in Recently heard; use Fix to teach it any word it got wrong.
+- [ ] Recognition accuracy: try Better (about 75 MB download). If it cannot download, Solo should say so and keep working with Fast.
+Automated, opt-in (need models): `SOLO_VOICES_DIR=... npx vitest run voiceId.integration` (real speaker model on sample audio), `asr.bench` (speech model speed/accuracy).

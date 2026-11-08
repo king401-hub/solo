@@ -17,8 +17,12 @@ export function cleanTranscript(raw: string): string {
   return HALLUCINATIONS.has(key) ? "" : t;
 }
 
+/** Speech-recognition model sizes: bigger is more accurate (especially on accents) but slower. All are English-only models. */
+export const ASR_MODELS = { fast: "Xenova/whisper-tiny.en", better: "Xenova/whisper-base.en", best: "Xenova/whisper-small.en" } as const;
+export type AsrPreset = keyof typeof ASR_MODELS;
+
 export function createStt(opts: { cacheDir: string; model?: string }): Stt {
-  const model = opts.model ?? "Xenova/whisper-tiny.en";
+  const model = opts.model ?? ASR_MODELS.fast;
   let loading: Promise<(audio: Float32Array, o?: object) => Promise<{ text: string }>> | undefined;
   const load = (onProgress?: (pct: number) => void) =>
     (loading ??= (async () => {

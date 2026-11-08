@@ -12,9 +12,19 @@ declare global {
         reveal(): Promise<void>;
         quit(): Promise<void>;
       };
+      voiceId: {
+        status(): Promise<{ enrolled: boolean; createdAt?: number; pending: number; needed: number; encrypted: boolean }>;
+        warmup(): Promise<{ ok: true } | { ok: false; error: string }>;
+        start(): Promise<void>;
+        cancel(): Promise<void>;
+        addClip(pcm: Float32Array): Promise<{ ok: boolean; count: number; reason?: string }>;
+        finish(): Promise<{ ok: boolean; quality: { ok: boolean; clips: number; minAgreement: number; meanAgreement: number; reason?: string } }>;
+        verify(pcm: Float32Array, strictness: number): Promise<{ enrolled: false } | { enrolled: true; tooShort: true } | { enrolled: true; tooShort?: false; score: number; owner: boolean }>;
+        reset(): Promise<void>;
+      };
       voice: {
         setMicAllowed(on: boolean): Promise<void>;
-        warmup(): Promise<{ ok: true } | { ok: false; error: string }>;
+        warmup(preset?: string): Promise<{ ok: true } | { ok: false; error: string }>;
         transcribe(pcm: Float32Array): Promise<string>;
         onModelProgress(cb: (pct: number) => void): () => void;
       };

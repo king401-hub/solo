@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Segmenter, VoiceSettings, initialVoice, matchWake, resample, stepVoice, type VoiceEvent, type VoiceState } from "./index";
+import { Segmenter, VoiceSettings, initialVoice, matchWake, micPolicy, resample, stepVoice, type VoiceEvent, type VoiceState } from "./index";
 
 describe("matchWake", () => {
   it("matches both wake words and returns the request", () => {
@@ -116,5 +116,76 @@ describe("Segmenter / resample", () => {
     expect(resample(new Float32Array(4800), 48000, 16000)).toHaveLength(1600);
     const x = new Float32Array(10);
     expect(resample(x, 16000, 16000)).toBe(x);
+  });
+});
+
+describe("owner's voice (voice print)", () => {
+  const vid = { enrolled: true, onlyMyVoice: true, greetings: true };
+  const step = (state: VoiceState, e: VoiceEvent, cfg: Parameters<typeof stepVoice>[2] = { voiceId: vid }) => stepVoice(state, e, cfg);
+  const on: VoiceState = { phase: "idle", followUpUntil: 0 };
+
+  it("the owner's greeting wakes Solo with no wake word", () => {
+    const r = step(on, { type: "utterance", text: "Good morning", now: 1, owner: true });
+    expect(r.effects).toEqual([{ type: "greet", kind: "morning" }]);
+    expect(r.state.phase).toBe("thinking");
+    expect(step(on, { type: "utterance", text: "hello", now: 1, owner: true }).effects).toEqual([{ type: "greet", kind: "hello" }]);
+    expect(step(on, { type: "utterance", text: "how far", now: 1, owner: true }).effects).toEqual([{ type: "greet", kind: "howfar" }]);
+  });
+  it("a greeting followed by a request submits the request", () => {
+    expect(step(on, { type: "utterance", text: "good morning open chrome", now: 1, owner: true }).effects).toEqual([{ type: "submit", text: "open chrome" }]);
+  });
+  it("someone else saying hello or even the wake phrase is ignored when only-my-voice is on", () => {
+    for (const text of ["good morning", "hello", "hey solo open chrome", "solo what time is it"]) {
+      expect(step(on, { type: "utterance", text, now: 1, owner: false }).effects, text).toEqual([{ type: "ignore" }]);
+    }
+  });
+  it("audio too short to verify counts as not the owner (fails safe)", () => {
+    expect(step(on, { type: "utterance", text: "hey solo hello", now: 1 }).effects).toEqual([{ type: "ignore" }]);
+  });
+  it("follow-up conversation also needs the owner's voice", () => {
+    const f: VoiceState = { phase: "idle", followUpUntil: 5000 };
+    expect(step(f, { type: "utterance", text: "and then what", now: 100, owner: true }).effects).toEqual([{ type: "submit", text: "and then what" }]);
+    expect(step(f, { type: "utterance", text: "and then what", now: 100, owner: false }).effects).toEqual([{ type: "ignore" }]);
+  });
+  it("a greeting aimed at someone else is not taken, even from the owner", () => {
+    expect(step(on, { type: "utterance", text: "good morning everyone", now: 1, owner: true }).effects).toEqual([{ type: "ignore" }]);
+    expect(step(on, { type: "utterance", text: "hi mum", now: 1, owner: true }).effects).toEqual([{ type: "ignore" }]);
+  });
+  it("greetings can be switched off while the wake phrase still works for the owner", () => {
+    const cfg = { voiceId: { ...vid, greetings: false } };
+    expect(step(on, { type: "utterance", text: "good morning", now: 1, owner: true }, cfg).effects).toEqual([{ type: "ignore" }]);
+    expect(step(on, { type: "utterance", text: "hey solo open chrome", now: 1, owner: true }, cfg).effects).toEqual([{ type: "submit", text: "open chrome" }]);
+  });
+  it("without a voice print nothing changes: wake phrase works for anyone, bare greetings do nothing", () => {
+    expect(stepVoice(on, { type: "utterance", text: "hey solo open chrome", now: 1 }).effects).toEqual([{ type: "submit", text: "open chrome" }]);
+    expect(stepVoice(on, { type: "utterance", text: "good morning", now: 1 }).effects).toEqual([{ type: "ignore" }]);
+  });
+  it("only-my-voice can be turned off: the owner check then only enables greetings", () => {
+    const cfg = { voiceId: { ...vid, onlyMyVoice: false } };
+    expect(step(on, { type: "utterance", text: "hey solo open chrome", now: 1, owner: false }, cfg).effects).toEqual([{ type: "submit", text: "open chrome" }]);
+    expect(step(on, { type: "utterance", text: "good morning", now: 1, owner: false }, cfg).effects).toEqual([{ type: "ignore" }]);
+  });
+});
+
+describe("micPolicy (Solo never hears itself)", () => {
+  const base = { capturing: false, speaking: false, now: 1000, muteUntil: 0, enrolled: false, allowInterrupt: true };
+  it("listens normally when Solo is quiet", () => expect(micPolicy(base)).toBe("listen"));
+  it("ignores the microphone while Solo speaks when no voice print exists, so its own echo cannot cut it off", () => {
+    expect(micPolicy({ ...base, speaking: true })).toBe("ignore");
+    expect(micPolicy({ ...base, speaking: true, allowInterrupt: true })).toBe("ignore");
+  });
+  it("keeps ignoring for a short tail after speech ends", () => {
+    expect(micPolicy({ ...base, now: 1000, muteUntil: 1500 })).toBe("ignore");
+    expect(micPolicy({ ...base, now: 1500, muteUntil: 1500 })).toBe("listen");
+  });
+  it("lets only a verified owner interrupt: watch (do not act) while speaking, and only if allowed", () => {
+    expect(micPolicy({ ...base, speaking: true, enrolled: true })).toBe("watch-interrupt");
+    expect(micPolicy({ ...base, speaking: true, enrolled: true, allowInterrupt: false })).toBe("ignore");
+  });
+  it("the tail after speech never watches for interruptions (nothing is playing)", () => {
+    expect(micPolicy({ ...base, enrolled: true, muteUntil: 2000 })).toBe("ignore");
+  });
+  it("enrolment recording always listens", () => {
+    expect(micPolicy({ ...base, capturing: true, speaking: true })).toBe("listen");
   });
 });

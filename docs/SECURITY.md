@@ -69,3 +69,10 @@ Threats: rogue device on LAN, prompt injection (web pages/notifications telling 
 - Risky content is excluded by default: dependency and build folders, live databases, and `.git` (see SYNC.md).
 - Supply chain: the engine binary is pinned by version and SHA-256 (verified against the checksum list on the release page); its PGP signature was not verified when pinned.
 - Orphan protection: the engine runs as a supervisor plus worker; Solo kills the whole process tree when it must force-stop it, so no engine is left syncing in the background after Solo exits (found and fixed during testing).
+
+## Voice print (biometric data)
+- A voice print is biometric data. Solo keeps only a numeric vector (never audio), on this PC only, encrypted with the Windows keystore (DPAPI) when available, never synced to the phone or any server, deletable at any time from Voice > My voice.
+- It is a convenience gate, not authentication: recordings or synthetic copies of the owner's voice can pass it, and no anti-spoofing is claimed. It must not be the only protection for any consequential action (Phase 6 confirmations do not depend on it).
+- Failing safe: audio too short to judge counts as "not the owner"; with "only my voice" on, such audio cannot wake or command Solo.
+- The speaker model runs offline; audio never leaves the process. Enrolment recordings are discarded after their vectors are computed.
+- Known limit: the model's licence (WavLM-base-plus-sv) should be checked before any public release.

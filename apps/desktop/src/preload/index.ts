@@ -10,9 +10,19 @@ contextBridge.exposeInMainWorld("solo", {
     reveal: (): Promise<void> => ipcRenderer.invoke("app:reveal"),
     quit: (): Promise<void> => ipcRenderer.invoke("app:quit"),
   },
+  voiceId: {
+    status: (): Promise<{ enrolled: boolean; createdAt?: number; pending: number; needed: number; encrypted: boolean }> => ipcRenderer.invoke("voiceId:status"),
+    warmup: (): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke("voiceId:warmup"),
+    start: (): Promise<void> => ipcRenderer.invoke("voiceId:start"),
+    cancel: (): Promise<void> => ipcRenderer.invoke("voiceId:cancel"),
+    addClip: (pcm: Float32Array): Promise<{ ok: boolean; count: number; reason?: string }> => ipcRenderer.invoke("voiceId:addClip", pcm),
+    finish: (): Promise<{ ok: boolean; quality: { ok: boolean; clips: number; minAgreement: number; meanAgreement: number; reason?: string } }> => ipcRenderer.invoke("voiceId:finish"),
+    verify: (pcm: Float32Array, strictness: number): Promise<{ enrolled: false } | { enrolled: true; tooShort: true } | { enrolled: true; tooShort?: false; score: number; owner: boolean }> => ipcRenderer.invoke("voiceId:verify", pcm, strictness),
+    reset: (): Promise<void> => ipcRenderer.invoke("voiceId:reset"),
+  },
   voice: {
     setMicAllowed: (on: boolean): Promise<void> => ipcRenderer.invoke("voice:setMicAllowed", on),
-    warmup: (): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke("voice:warmup"),
+    warmup: (preset?: string): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke("voice:warmup", preset),
     transcribe: (pcm: Float32Array): Promise<string> => ipcRenderer.invoke("voice:transcribe", pcm),
     onModelProgress: (cb: (pct: number) => void) => {
       const h = (_: unknown, p: number) => cb(p);

@@ -38,3 +38,6 @@
 ## 0.5.0 - Unreleased
 - File synchronisation: Syncthing engine supervised by Solo, `files.device` protocol message, Files screen (devices, offers, folders, conflicts, history, ignore rules, privacy), safe default exclusions, docs/SYNC.md.
 - Fix: LinkServer.listen now rejects on a busy port so the app falls back to a free port instead of hanging.
+
+## 0.6.0 - Unreleased
+- Voice: owner recognition (voice print), owner-only mode, greetings without a wake word, owner-only interruption, Test my voice, Nigerian English/Pidgin helpers, corrections, selectable speech model; Solo no longer listens to itself while speaking. See docs/VOICE.md.

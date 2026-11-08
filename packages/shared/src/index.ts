@@ -8,3 +8,5 @@ export * from "./voice";
 export * from "./vad";
 export * from "./sync";
 export * from "./relay";
+export * from "./language";
+export * from "./voiceprint";

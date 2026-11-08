@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { matchGreeting, type GreetingKind } from "./language";
 
 /** User-facing voice settings (persisted locally; synced to the phone later). */
 export const VoiceSettings = z.object({
@@ -11,6 +12,14 @@ export const VoiceSettings = z.object({
   voiceURI: z.string().optional(), // device-specific explicit choice; overrides voiceGender on this device only
   voiceGender: z.enum(["female", "male", "any"]).default("female"), // Solo's voice, synced across devices
   speechRate: z.number().min(0.5).max(2).default(1),
+  // ---- recognising the owner's voice (device-specific, never synced; the voice print itself is stored separately) ----
+  onlyMyVoice: z.boolean().default(true), // once a voice print exists, other voices cannot wake or command Solo
+  greetingsWake: z.boolean().default(true), // the owner's "hello" / "good morning" wakes Solo with no wake word
+  allowInterrupt: z.boolean().default(true), // only the owner's voice can interrupt Solo while it is speaking
+  strictness: z.number().min(0).max(1).default(0.25), // 0 = lenient ... 1 = strict. Default (threshold about 0.785) chosen from measurements: 0 of 12 other-voice clips accepted, 11 of 12 unseen owner clips, and short one-second greetings score lower than long speech
+  // ---- recognition quality ----
+  asrModel: z.enum(["fast", "better", "best"]).default("fast"), // speech-recognition model size (speed vs accuracy); "fast" is the one verified end to end
+  corrections: z.array(z.object({ heard: z.string().max(80), meant: z.string().max(80) })).max(200).default([]), // words the user taught Solo
 });
 export type VoiceSettings = z.infer<typeof VoiceSettings>;
 
@@ -70,7 +79,7 @@ export type VoiceEvent =
   | { type: "mic.on" }
   | { type: "mic.off" }
   | { type: "wake"; now: number } // wake phrase heard (utterance may or may not carry a request)
-  | { type: "utterance"; text: string; now: number; wakeAlready?: boolean } // finished speech segment, transcribed
+  | { type: "utterance"; text: string; now: number; wakeAlready?: boolean; /** was it the enrolled owner? undefined = not checked or too short to judge */ owner?: boolean } // finished speech segment, transcribed
   | { type: "reply.start" }
   | { type: "reply.end"; now: number; followUpMs: number }
   | { type: "barge-in" } // user speaks over Solo
@@ -80,6 +89,7 @@ export type VoiceEffect =
   | { type: "stop-speaking" }
   | { type: "submit"; text: string } // send to the conversational/agentic system
   | { type: "prompt" } // "Hey Solo" with no request: acknowledge and listen
+  | { type: "greet"; kind: GreetingKind } // the owner said hello / good morning: greet back
   | { type: "ignore" };
 
 export const initialVoice: VoiceState = { phase: "off", followUpUntil: 0 };
@@ -91,7 +101,7 @@ export const initialVoice: VoiceState = { phase: "off", followUpUntil: 0 };
 export function stepVoice(
   s: VoiceState,
   e: VoiceEvent,
-  cfg: { wakeWords?: string[]; quickWord?: boolean } = {},
+  cfg: { wakeWords?: string[]; quickWord?: boolean; voiceId?: { enrolled: boolean; onlyMyVoice: boolean; greetings: boolean } } = {},
 ): { state: VoiceState; effects: VoiceEffect[] } {
   const same = (effects: VoiceEffect[] = []) => ({ state: s, effects });
   switch (e.type) {
@@ -114,14 +124,23 @@ export function stepVoice(
       return s.phase === "off" ? same() : { state: { ...s, phase: "listening" }, effects: s.phase === "speaking" ? [{ type: "stop-speaking" }] : [] };
     case "utterance": {
       if (s.phase === "off") return same([{ type: "ignore" }]);
+      const vid = cfg.voiceId;
+      // With a voice print and "only my voice" on, anything that is not verifiably the owner is ignored outright: it cannot
+      // wake Solo, give it a command, or continue a conversation. Audio too short to judge counts as not verified.
+      if (vid?.enrolled && vid.onlyMyVoice && e.owner !== true) return same([{ type: "ignore" }]);
       const inFollowUp = e.now <= s.followUpUntil;
       const w = matchWake(e.text, cfg);
-      const text = w.matched ? w.rest : e.text.trim();
-      if (!w.matched && !inFollowUp && !e.wakeAlready && s.phase !== "listening") {
+      // The owner's greeting works without any wake word ("good morning"); never for an unverified voice.
+      const g = !w.matched && vid?.enrolled && vid.greetings && e.owner === true ? matchGreeting(e.text) : null;
+      const text = w.matched ? w.rest : g ? g.rest : e.text.trim();
+      if (!w.matched && !g && !inFollowUp && !e.wakeAlready && s.phase !== "listening") {
         return same([{ type: "ignore" }]); // ambient speech: drop
       }
       const stop: VoiceEffect[] = s.phase === "speaking" ? [{ type: "stop-speaking" }] : [];
-      if (!text) return { state: { ...s, phase: "listening" }, effects: [...stop, { type: "prompt" }] };
+      if (!text) {
+        if (g) return { state: { ...s, phase: "thinking" }, effects: [...stop, { type: "greet", kind: g.kind }] };
+        return { state: { ...s, phase: "listening" }, effects: [...stop, { type: "prompt" }] };
+      }
       return { state: { ...s, phase: "thinking" }, effects: [...stop, { type: "submit", text }] };
     }
   }
@@ -152,4 +171,21 @@ export function pickVoice<T extends VoiceInfoLike>(voices: T[], gender: VoiceSet
   const hit = pool.find((v) => matches(v, names) && !matches(v, other));
   if (hit) return hit;
   return voices.find((v) => matches(v, names) && !matches(v, other));
+}
+
+// ---- Microphone policy while Solo talks -------------------------------------------------------------------------
+
+export type MicPolicy = "listen" | "ignore" | "watch-interrupt";
+
+/**
+ * Decides what to do with microphone audio. Solo must never treat its own voice (coming out of the laptop speakers) as
+ * the user: while it speaks, and briefly after, the microphone is ignored. The only exception is an enrolled owner who
+ * allowed interruption: then sustained speech is checked against the owner's voice print (watch-interrupt), so a person
+ * can stop Solo but Solo's own voice, a TV or a visitor cannot. Without a voice print there is no way to tell the
+ * owner from Solo's own voice, so nothing can interrupt it by sound.
+ */
+export function micPolicy(o: { capturing: boolean; speaking: boolean; now: number; muteUntil: number; enrolled: boolean; allowInterrupt: boolean }): MicPolicy {
+  if (o.capturing) return "listen"; // enrolment recording: Solo is silent then
+  if (!o.speaking && o.now >= o.muteUntil) return "listen";
+  return o.speaking && o.enrolled && o.allowInterrupt ? "watch-interrupt" : "ignore";
 }

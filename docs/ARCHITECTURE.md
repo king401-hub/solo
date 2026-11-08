@@ -101,3 +101,6 @@ Goal: devices connect over any internet (a phone on mobile data, laptops on any 
 
 ## File synchronisation (see SYNC.md)
 Real folders are kept identical across devices by the Syncthing engine (MPL-2.0, shipped unmodified, driven by Solo over a loopback-only authenticated API). Files travel engine-to-engine, directly or through encrypted public relays; they never touch a Solo server or the Solo relay. Solo adds: identity introduction between already-trusted devices (`files.device`), safe default exclusions, conflict and history screens, status, and process supervision. Opt-in; off by default.
+
+## Voice recognition (see VOICE.md)
+Desktop only. `speaker.ts` (WavLM embedding, offline) + `voiceId.ts` (enrolment, encrypted storage, verification) in the main process; `voiceprint.ts` (maths), `language.ts` (greetings, Nigerian English, corrections) and the owner-aware `stepVoice` / `micPolicy` in `packages/shared`; the renderer engine transcribes and speaker-checks each utterance in parallel and ignores the microphone while Solo speaks.

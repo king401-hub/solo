@@ -1,7 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, session, shell } from "electron";
 import { isAbsolute, join, parse, resolve } from "node:path";
 import { startLink } from "./link/service";
-import { createStt } from "./voice/stt";
+import { ASR_MODELS, createStt, type AsrPreset, type Stt } from "./voice/stt";
+import { createSpeaker } from "./voice/speaker";
+import { VoiceId } from "./voice/voiceId";
 import { setupBackground } from "./background";
 
 let win: BrowserWindow | undefined;
@@ -39,15 +41,46 @@ app.whenReady().then(async () => {
     cb(perm === "media" && micAllowed && ours(details.requestingUrl) && (details as { mediaTypes?: string[] }).mediaTypes?.every((t) => t === "audio") !== false));
   session.defaultSession.setPermissionCheckHandler((_wc, perm, origin) => perm === "media" && micAllowed && ours(origin));
   ipcMain.handle("voice:setMicAllowed", (_e, on: unknown) => { micAllowed = on === true; });
-  const stt = createStt({ cacheDir: join(app.getPath("userData"), "models") });
-  ipcMain.handle("voice:warmup", async (e) => {
-    try { await stt.warmup((p) => e.sender.send("voice:modelProgress", p)); return { ok: true as const }; }
-    catch (err) { return { ok: false as const, error: err instanceof Error ? err.message : String(err) }; }
+  const cacheDir = join(app.getPath("userData"), "models");
+  let sttPreset: AsrPreset = "fast";
+  let stt: Stt = createStt({ cacheDir, model: ASR_MODELS[sttPreset] });
+  const isPreset = (v: unknown): v is AsrPreset => typeof v === "string" && v in ASR_MODELS;
+  ipcMain.handle("voice:warmup", async (e, preset: unknown) => {
+    try {
+      if (isPreset(preset) && preset !== sttPreset) { sttPreset = preset; stt = createStt({ cacheDir, model: ASR_MODELS[preset] }); }
+      await stt.warmup((p) => e.sender.send("voice:modelProgress", p));
+      return { ok: true as const };
+    } catch (err) { return { ok: false as const, error: err instanceof Error ? err.message : String(err) }; }
   });
   ipcMain.handle("voice:transcribe", async (_e, pcm: unknown) => {
     if (!(pcm instanceof Float32Array) || pcm.length === 0 || pcm.length > 16000 * 30) return "";
     return stt.transcribe(pcm);
   });
+
+  // The owner's voice print: local only, encrypted with the OS keystore, never synced.
+  const speaker = createSpeaker({ cacheDir });
+  const SPEAKER_MODEL = "Xenova/wavlm-base-plus-sv";
+  const voiceId = new VoiceId({
+    file: join(app.getPath("userData"), "voiceprint.bin"), speaker, model: SPEAKER_MODEL,
+    encrypt: (t) => (safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(t) : null),
+    decrypt: (b) => (safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(b) : null),
+  });
+  const audio = (v: unknown, maxSeconds: number) => (v instanceof Float32Array && v.length > 0 && v.length <= 16000 * maxSeconds ? v : undefined);
+  ipcMain.handle("voiceId:status", () => voiceId.status());
+  ipcMain.handle("voiceId:warmup", async (e) => {
+    try { await speaker.warmup((p) => e.sender.send("voice:modelProgress", p)); return { ok: true as const }; }
+    catch (err) { return { ok: false as const, error: err instanceof Error ? err.message : String(err) }; }
+  });
+  ipcMain.handle("voiceId:start", () => voiceId.startEnrollment());
+  ipcMain.handle("voiceId:cancel", () => voiceId.cancelEnrollment());
+  ipcMain.handle("voiceId:addClip", async (_e, pcm: unknown) => { const a = audio(pcm, 30); return a ? voiceId.addClip(a) : { ok: false, count: voiceId.status().pending, reason: "Invalid recording" }; });
+  ipcMain.handle("voiceId:finish", () => voiceId.finishEnrollment());
+  ipcMain.handle("voiceId:verify", async (_e, pcm: unknown, strictness: unknown) => {
+    const a = audio(pcm, 30);
+    if (!a) return voiceId.status().enrolled ? { enrolled: true, tooShort: true } : { enrolled: false };
+    return voiceId.verify(a, typeof strictness === "number" ? strictness : 0.5);
+  });
+  ipcMain.handle("voiceId:reset", () => voiceId.reset());
   ipcMain.handle("solo:version", () => app.getVersion());
 
   const link = await startLink(
