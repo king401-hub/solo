@@ -41,3 +41,4 @@
 
 ## 0.6.0 - Unreleased
 - Voice: owner recognition (voice print), owner-only mode, greetings without a wake word, owner-only interruption, Test my voice, Nigerian English/Pidgin helpers, corrections, selectable speech model; Solo no longer listens to itself while speaking. See docs/VOICE.md.
+- Phone parity: owner voice recognition, only-my-voice, greetings without a wake word, owner-only interruption, Test my voice, corrections and Nigerian English helpers on Android (Kotlin, ONNX Runtime, Keystore-encrypted voice print). Kotlin results match the desktop on the same audio. See docs/VOICE.md section 6.

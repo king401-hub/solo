@@ -50,8 +50,20 @@ dependencies {
     implementation("com.alphacephei:vosk-android:0.3.47@aar")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
     implementation("androidx.core:core-ktx:1.13.1")
+    // On-phone speaker verification (voice print): the same WavLM speaker model as the desktop, run with ONNX Runtime.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     testImplementation("junit:junit:4.13.2")
+    // Unit tests run on the PC's JVM, so they use the desktop build of ONNX Runtime and the real org.json.
+    testImplementation("com.microsoft.onnxruntime:onnxruntime:1.20.0")
+    testImplementation("org.json:json:20240303")
 }
+
+// The Android build of ONNX Runtime must not shadow the desktop one in unit tests (same classes, different natives).
+configurations.matching { it.name.startsWith("test") }.configureEach {
+    exclude(group = "com.microsoft.onnxruntime", module = "onnxruntime-android")
+}
+
+android.androidResources.noCompress += "onnx" // already compressed; lets the model be read straight from the APK
 
 flutter {
     source = "../.."

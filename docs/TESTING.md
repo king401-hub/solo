@@ -97,3 +97,12 @@ Manual, REQUIRED before relying on it (needs two PCs on different internet conne
 - [ ] Say a sentence with Nigerian English/Pidgin ("abeg open Chrome", "how far"). Check what Solo heard in Recently heard; use Fix to teach it any word it got wrong.
 - [ ] Recognition accuracy: try Better (about 75 MB download). If it cannot download, Solo should say so and keep working with Fast.
 Automated, opt-in (need models): `SOLO_VOICES_DIR=... npx vitest run voiceId.integration` (real speaker model on sample audio), `asr.bench` (speech model speed/accuracy).
+
+## Phone voice recognition (needs a person and the phone)
+- [ ] Settings > My voice > Teach Solo my voice: read the 5 sentences. Note how long "Analysing" takes; it should say "Done".
+- [ ] Test my voice: say a full sentence and note the score against the line. Try again with noise, quietly, and farther away.
+- [ ] With the screen off, say "Good morning" with no wake word: Solo answers. Ask someone else to say it: Solo ignores them (Recently heard shows the score).
+- [ ] While Solo speaks, talk over it: it stops. A different person talking should not stop it.
+- [ ] Add a correction ("sorry low" -> "Solo") and check it is applied.
+Automated, opt-in: `SOLO_VOICES_DIR=... SOLO_WAVLM_MODEL=... ./gradlew :app:testDebugUnitTest --tests "*SpeakerEmbedderRealTest"` (in apps/android/android).
+

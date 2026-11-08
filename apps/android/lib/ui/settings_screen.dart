@@ -3,6 +3,7 @@ import 'dart:async';
 
 import '../link/link_api.dart';
 import '../wake/wake_channel.dart';
+import 'voice_cards.dart';
 
 /// Assistant settings shared with the desktop. Edits here appear on the PC (and vice versa) within a moment while
 /// connected, and are merged on reconnect if either side changed them offline.
@@ -168,12 +169,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(h.text),
-                  trailing: Text(h.accepted ? 'for Solo' : 'ignored'),
+                  subtitle: h.score == null ? null : Text('${h.owner == true ? 'your voice' : 'another voice'} (match ${h.score!.toStringAsFixed(2)})'),
+                  trailing: Text(h.accepted ? 'for Solo' : h.owner == false ? 'ignored (not your voice)' : 'ignored'),
                 ),
             ],
           ]),
         ),
       ),
+      const SizedBox(height: 12),
+      MyVoiceCard(wake: _wake),
+      const SizedBox(height: 12),
+      CorrectionsCard(wake: _wake),
     ]);
   }
 }

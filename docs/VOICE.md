@@ -87,4 +87,27 @@ sentence splitting; the numbers in section 2 with the real model.
 Not verified: any real person's voice (accuracy for you is unknown; use *Test my voice*); Nigerian-accented or Pidgin
 recognition; the enrolment and settings screens used by a person (built and type-checked; screenshot only); the microphone
 interruption path with real acoustics; behaviour with the microphone near the speakers; spoofing resistance (none claimed);
-the phone (voice recognition is desktop-only for now); model licences (WavLM-base-plus-sv: check before public release).
+phone items listed in section 6; model licences (WavLM-base-plus-sv: check before public release).
+
+## 6. The phone does the same (parity)
+
+Everything in sections 2 and 3 exists on the Android app too, written natively in Kotlin (same maths, same thresholds):
+*Settings > My voice* (five-sentence enrolment, only-my-voice, greetings without a wake word, owner-only interruption,
+strictness, Test my voice, delete) and *Words Solo should fix*. The wake-word service checks the speaker after Vosk hears a
+phrase, and ignores people who are not you.
+
+How it differs from the desktop:
+- **Speech engine**: Vosk (small English model), not the Whisper sizes. No "Better/Best" choice on the phone.
+- **Speaker model**: the same WavLM model, run with ONNX Runtime. The app is about 100 MB larger. The voice print is encrypted
+  with the Android Keystore and never leaves the phone; the desktop and phone prints are separate and not synced.
+- **Corrections** are kept per device and are not synced.
+
+Verified (JVM, same real model and same audio as the desktop): genuine 11/12 accepted (mean 0.886, desktop 0.887),
+impostor 1/12 accepted (mean 0.516, desktop 0.516), enrolment agreement 0.785 / 0.877 (desktop 0.790 / 0.880).
+Unit tests cover the maths, storage and language rules; Flutter widget tests cover the screens.
+A bug found on the way: the first Kotlin version normalised the waveform, but this model's own feature extractor does not
+(`do_normalize: false`); enrolment was refused until that was fixed.
+
+Not verified: speed and accuracy on a real phone (enrolling runs about 25 embeddings; on a PC JVM that took 40 s), the
+wake-word service with owner checking on a real handset (battery limits, Huawei background rules), real voices, Nigerian
+accents, and the acoustic path from speaker to microphone.
