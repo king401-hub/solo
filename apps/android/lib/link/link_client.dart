@@ -7,6 +7,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../relay/e2e.dart' as e2e;
+import '../relay/relay_client.dart';
 import 'discovery.dart';
 import 'link_api.dart';
 import '../sync/sync_store.dart';
@@ -32,12 +34,38 @@ class LinkClient extends LinkApi {
   @override
   LinkState get state => _s;
   void _set(LinkState s) {
-    _s = s;
+    _s = _withRelay(s);
     notifyListeners();
+  }
+
+  /// Attach live peer/relay info (kept out of _copy so every state change stays fresh automatically).
+  LinkState _withRelay(LinkState s) {
+    final r = _relay;
+    if (r == null) return s;
+    final lanOn = s.status == LinkStatus.connected && _desktopId != null;
+    final online = r.onlinePeerIds.toSet();
+    return LinkState(
+      status: s.status, lastError: s.lastError, desktopName: s.desktopName, host: s.host, port: s.port,
+      deviceName: s.deviceName, sas: s.sas, autoPair: s.autoPair, discovered: s.discovered, settings: s.settings,
+      lastSync: s.lastSync,
+      peers: [
+        for (final p in r.peers)
+          PeerInfo(
+            id: p.id, name: p.name, kind: p.kind,
+            online: online.contains(p.id) || (lanOn && p.id == _desktopId),
+            via: (lanOn && p.id == _desktopId) ? 'lan' : online.contains(p.id) ? 'relay' : null,
+          ),
+      ],
+      relayUrl: r.url,
+      relayStatus: r.status.name,
+    );
   }
 
   // Secrets / identity (not part of LinkState).
   String? _token, _certFp, _desktopId, _deviceId;
+  e2e.Identity? _identity;
+  RelayClient? _relay;
+  String? _applyingFrom; // device whose delta we are applying, so it is not echoed back to it
   SyncStore? _sync;
   Timer? _hb, _retry, _scan;
   WebSocket? _ws;
@@ -73,6 +101,28 @@ class LinkClient extends LinkApi {
       );
   static const _keep = Object();
 
+  static List<RelayPeer> _loadPeers(String? json) {
+    if (json == null) return const [];
+    try {
+      return [for (final p in jsonDecode(json) as List) RelayPeer.fromJson(p as Map)];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Send a change to every reachable device except the one it came from. The LAN desktop is reached over the LAN
+  /// when connected (faster), everyone else through the relay. Because remote changes are forwarded too, a phone
+  /// paired with several laptops keeps all of them in step.
+  void _broadcast(SyncDelta d) {
+    final lanId = _s.status == LinkStatus.connected ? _desktopId : null;
+    if (lanId != null && lanId != _applyingFrom) _send('sync.delta', d.toPayload());
+    final relay = _relay;
+    if (relay == null) return;
+    for (final id in relay.onlinePeerIds) {
+      if (id != _applyingFrom && id != lanId) relay.send(id, 'sync.delta', d.toPayload());
+    }
+  }
+
   /// Hands the synced voice settings to the native wake-word service (it reads Flutter's SharedPreferences file),
   /// so desktop changes reach it even while the app UI is closed.
   Future<void> _publishVoiceConfig(Map<String, dynamic>? cfg) async {
@@ -84,15 +134,17 @@ class LinkClient extends LinkApi {
     }
   }
 
+  /// The device identity is an Ed25519 key kept in secure storage; the device id is the SHA-256 of its public key.
   Future<String> _id() async {
     if (_deviceId != null) return _deviceId!;
-    var id = await _storage.read(key: 'deviceId');
-    if (id == null) {
-      final r = Random.secure();
-      id = List.generate(16, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
-      await _storage.write(key: 'deviceId', value: id);
+    var seed = await _storage.read(key: 'idSeed');
+    if (seed == null) {
+      final fresh = await e2e.generateIdentity();
+      seed = fresh.seed;
+      await _storage.write(key: 'idSeed', value: seed);
     }
-    return _deviceId = id;
+    _identity = await e2e.identityFromSeed(seed);
+    return _deviceId = _identity!.id;
   }
 
   Map<String, dynamic> _frame(String id, String type, Map<String, dynamic> payload) => {
@@ -105,7 +157,7 @@ class LinkClient extends LinkApi {
       };
 
   Map<String, dynamic> _device(String id) =>
-      {'deviceId': id, 'kind': 'android', 'name': _s.deviceName, 'appVersion': appVersion};
+      {'deviceId': id, 'kind': 'android', 'name': _s.deviceName, 'appVersion': appVersion, 'pub': _identity?.pub};
 
   /// Load saved settings/pairing, connect, and start looking for desktops if unpaired.
   Future<void> start() async {
@@ -113,9 +165,42 @@ class LinkClient extends LinkApi {
     final auto = await _storage.read(key: 'autoPair') == '1';
     final sync = SyncStore(await _id(), initial: SyncStore.parse(await _storage.read(key: 'sync')));
     _sync = sync;
+    _relay = RelayClient(
+      identity: _identity!,
+      self: () => (name: _s.deviceName, kind: 'android', appVersion: appVersion),
+      peers: _loadPeers(await _storage.read(key: 'relayPeers')),
+      onPeersChanged: () {
+        _storage.write(key: 'relayPeers', value: jsonEncode(_relay!.peers.map((p) => p.toJson()).toList()));
+        _set(_s);
+      },
+      onStatus: (_) => _set(_s),
+      onDisconnected: (_) => _set(_s),
+      onConnected: (peer) {
+        // exchange full state with the device that just came online; last-writer-wins makes both converge
+        for (final d in sync.all()) {
+          _relay!.send(peer.id, 'sync.delta', d.toPayload());
+        }
+        _set(_copy(lastSync: DateTime.now().millisecondsSinceEpoch));
+      },
+      onMessage: (from, env) {
+        if (env['type'] != 'sync.delta') return;
+        final d = SyncDelta.fromPayload(env['payload']);
+        if (d == null) return;
+        _applyingFrom = from;
+        try {
+          sync.apply(d);
+        } finally {
+          _applyingFrom = null;
+        }
+      },
+    );
     sync.onChange((d, local) {
       _storage.write(key: 'sync', value: sync.toJsonString());
-      if (local) _send('sync.delta', d.toPayload());
+      _broadcast(d);
+      if (d.table == 'settings' && d.rowId == 'relay') {
+        final u = d.deleted ? null : d.data?['url'];
+        _relay?.setUrl(u is String ? u : null);
+      }
       if (d.table == 'settings' && d.rowId == 'voice') {
         _publishVoiceConfig(sync.get('settings', 'voice'));
         _set(_copy(settings: sync.get('settings', 'voice') ?? const {}, lastSync: DateTime.now().millisecondsSinceEpoch));
@@ -123,6 +208,8 @@ class LinkClient extends LinkApi {
     });
     _publishVoiceConfig(sync.get('settings', 'voice'));
     _set(_copy(deviceName: name ?? _s.deviceName, autoPair: auto, settings: sync.get('settings', 'voice') ?? const {}));
+    final savedRelay = sync.get('settings', 'relay')?['url'];
+    _relay!.setUrl(savedRelay is String ? savedRelay : null);
     final host = await _storage.read(key: 'host');
     final token = await _storage.read(key: 'token');
     final fp = await _storage.read(key: 'fp');
@@ -199,6 +286,12 @@ class LinkClient extends LinkApi {
           case 'pair.accept':
             final dev = p['device'] as Map;
             await _persist(host, port, observedFp!, p['authToken'] as String, dev['name'] as String, dev['deviceId'] as String);
+            // The LAN pairing (TLS-pinned, code or approval) also gives us the desktop's key, so it is reachable over the
+            // internet later without pairing again.
+            final dpub = dev['pub'];
+            if (dpub is String && e2e.idOf(dpub) == dev['deviceId']) {
+              _relay?.addPeer(RelayPeer(id: dev['deviceId'] as String, name: dev['name'] as String, kind: 'windows', pub: dpub));
+            }
             done.complete(null);
           case 'pair.reject':
             done.complete(_reason(p['reason'] as String));
@@ -290,7 +383,14 @@ class LinkClient extends LinkApi {
             _set(_copy(lastSync: DateTime.now().millisecondsSinceEpoch));
           case 'sync.delta':
             final d = SyncDelta.fromPayload(pl);
-            if (d != null) _sync?.apply(d);
+            if (d != null) {
+              _applyingFrom = _desktopId;
+              try {
+                _sync?.apply(d);
+              } finally {
+                _applyingFrom = null;
+              }
+            }
           case 'pair.reject':
             final r = pl['reason'] as String;
             if (r == 'revoked' || r == 'unknown_device') {
@@ -347,11 +447,37 @@ class LinkClient extends LinkApi {
   }
 
   @override
+  Future<String?> setRelayUrl(String url) async {
+    final u = url.trim().replaceAll(RegExp(r'/+$'), '');
+    if (u.isNotEmpty && !validRelayUrl(u)) return 'Use a wss:// address (for example wss://your-relay.fly.dev)';
+    _sync?.set('settings', 'relay', {'url': u}); // shared with every paired device
+    return null;
+  }
+
+  @override
+  Future<String?> pairRemote(String code) async {
+    final r = _relay;
+    if (r == null) return 'Not ready yet';
+    final err = await r.joinPairing(code);
+    _set(_s);
+    return err;
+  }
+
+  @override
+  Future<void> removePeer(String id) async {
+    _relay?.removePeer(id);
+    if (id == _desktopId) await forget();
+    _set(_s);
+  }
+
+  @override
   Future<void> forget() async {
     _retry?.cancel();
     _hb?.cancel();
     await _ws?.close();
     _ws = null;
+    final oldDesktop = _desktopId;
+    if (oldDesktop != null) _relay?.removePeer(oldDesktop);
     _token = _certFp = _desktopId = null;
     for (final k in ['host', 'port', 'fp', 'token', 'desktopName', 'desktopId']) {
       await _storage.delete(key: k);
@@ -368,6 +494,7 @@ class LinkClient extends LinkApi {
     _hb?.cancel();
     _scan?.cancel();
     _ws?.close();
+    _relay?.stop();
     super.dispose();
   }
 }

@@ -17,3 +17,14 @@ Payload: `{ table: settings|memories|tasks|conversations, rowId, updatedAt, by, 
 - On every successful auth both sides send their full state as deltas (tombstones included), so edits made while disconnected merge on reconnect. While connected, local edits are pushed immediately; the desktop relays phone edits to other phones but never echoes to the origin.
 - Currently synced: `settings/voice` = `{ wakeWords, quickWord, followUpSeconds, speechRate, voiceGender }`. Device-specific settings (microphone, specific voice, device name) are deliberately not synced. The engine already supports `memories`, `tasks`, `conversations` for Phases 4-6.
 - Receivers validate every delta; malformed ones are dropped.
+
+## Internet relay protocol (v1)
+Source of truth: `packages/shared/src/relay.ts`. JSON text frames over `wss://` (ws:// only to loopback/private hosts).
+Device -> relay: `auth {pub, sig}` (sig = Ed25519 over `solo-relay-v1|<nonce>`), `send {to, body}`, `peers {ids}`, `watch {ids}`, `rdv.open/rdv.join {key}`, `rdv.close`.
+Relay -> device: `hello {nonce}`, `ready {id}`, `msg {from, body}`, `offline {to}`, `peers {online}`, `presence {id, online}`, `rdv.opened/found/none/joined`, `error {code}`.
+Device ids are `SHA-256(Ed25519 public key)` hex. Close codes: 4401 bad signature, 4408 auth timeout, 4409 replaced by a newer connection, 4429 blocked, 1013 too many connections, 1009 frame too large.
+
+Bodies between devices (opaque to the relay): pairing `pair.req/pair.ack/pair.no` (code-authenticated), session `hs1/hs2/reset`, and `data {c, ct}` carrying the normal protocol Envelope encrypted with AES-256-GCM (nonce = 4 zero bytes + 8-byte big-endian counter; AAD = `solo-data|<sender>|<receiver>`).
+Pairing code: `rendezvousKey = hex(HMAC-SHA256(code, "solo-rdv-v1"))[0:32]`; `proof = hex(HMAC-SHA256(code, "solo-rpair-v1|<req|ack>|<hostId>|<joinerId>|<nonce>|<joinerPub>|<hostPub or empty for req>"))`.
+Interop vectors (TS and Dart tests): ed25519 seed 00..1f -> pub `A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg`; x25519 shared of 0xaa.. and 0xbb.. keys `2f6d4d02...5229`; AES-GCM ciphertext `j28t9n1HUySAWD_W5_mgDILMTOeojQjAubU`; rendezvous `97ade306...cc`.
+`DeviceInfo` gained an optional `pub`; a presented key must hash to the device id (LAN link enforces this).

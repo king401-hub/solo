@@ -3,6 +3,20 @@ import 'discovery.dart';
 
 enum LinkStatus { unpaired, connecting, connected, offline, rejected }
 
+/// A paired device reachable over the LAN link and/or the internet relay.
+class PeerInfo {
+  const PeerInfo({required this.id, required this.name, required this.kind, required this.online, this.via});
+  final String id;
+  final String name;
+  final String kind;
+  final bool online;
+  final String? via; // 'lan' | 'relay' while online
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'kind': kind, 'online': online, 'via': via};
+  factory PeerInfo.fromJson(Map j) =>
+      PeerInfo(id: j['id'] as String, name: j['name'] as String, kind: j['kind'] as String, online: j['online'] as bool, via: j['via'] as String?);
+}
+
 /// Plain snapshot of link state. Sent from the background service isolate to the UI as a Map.
 class LinkState {
   const LinkState({
@@ -17,6 +31,9 @@ class LinkState {
     this.discovered = const [],
     this.settings = const {},
     this.lastSync,
+    this.peers = const [],
+    this.relayUrl,
+    this.relayStatus = 'off',
   });
   final LinkStatus status;
   final String? lastError;
@@ -30,8 +47,12 @@ class LinkState {
   /// Synced assistant settings (the shared 'voice' row): wakeWords, quickWord, followUpSeconds, speechRate, voiceGender.
   final Map<String, dynamic> settings;
   final int? lastSync; // epoch ms of the last sync activity
+  final List<PeerInfo> peers; // every paired device (laptops), with live reachability
+  final String? relayUrl;
+  final String relayStatus; // off | connecting | online
 
-  bool get paired => desktopName != null;
+  bool get paired => desktopName != null || peers.isNotEmpty;
+  List<PeerInfo> get onlinePeers => [for (final p in peers) if (p.online) p];
 
   Map<String, dynamic> toJson() => {
         'status': status.index,
@@ -45,6 +66,9 @@ class LinkState {
         'discovered': discovered.map((d) => d.toJson()).toList(),
         'settings': settings,
         'lastSync': lastSync,
+        'peers': peers.map((p) => p.toJson()).toList(),
+        'relayUrl': relayUrl,
+        'relayStatus': relayStatus,
       };
 
   factory LinkState.fromJson(Map<dynamic, dynamic> j) => LinkState(
@@ -59,6 +83,9 @@ class LinkState {
         discovered: [for (final d in (j['discovered'] as List)) FoundDesktop.fromJson(d as Map)],
         settings: Map<String, dynamic>.from((j['settings'] ?? const {}) as Map),
         lastSync: j['lastSync'] as int?,
+        peers: [for (final p in ((j['peers'] ?? const []) as List)) PeerInfo.fromJson(p as Map)],
+        relayUrl: j['relayUrl'] as String?,
+        relayStatus: (j['relayStatus'] ?? 'off') as String,
       );
 }
 
@@ -79,4 +106,13 @@ abstract class LinkApi extends ChangeNotifier {
 
   /// Change one assistant setting (e.g. 'speechRate'); syncs to every paired device.
   Future<void> setAssistantSetting(String key, Object value);
+
+  /// Set the Solo relay address (wss://...). Shared with every paired device. Returns an error message or null.
+  Future<String?> setRelayUrl(String url);
+
+  /// Pair with a device on another network using the 12-character code shown there. Returns an error or null.
+  Future<String?> pairRemote(String code);
+
+  /// Forget a paired device.
+  Future<void> removePeer(String id);
 }

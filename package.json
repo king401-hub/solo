@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Solo - personal AI companion across Windows and Android",
-  "workspaces": ["packages/*", "apps/desktop"],
+  "workspaces": ["packages/*", "apps/desktop", "apps/relay"],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

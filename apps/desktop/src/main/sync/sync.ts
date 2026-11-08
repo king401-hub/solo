@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { SyncStore, type SyncDelta, type SyncSnapshot } from "@solo/shared";
-import type { LinkServer } from "../link/server";
+import type { HubLike } from "../link/hub";
 
 function load(file: string): SyncSnapshot {
   if (!existsSync(file)) return {};
@@ -13,7 +13,7 @@ function load(file: string): SyncSnapshot {
  *  - on connect, send our whole state (the phone sends its own); last-writer-wins resolves the rest
  *  - local edits are pushed to all online devices; remote edits are applied and relayed to the others
  */
-export function createSync(opts: { file: string; deviceId: string; server: LinkServer; onChange: (d: SyncDelta, local: boolean) => void }) {
+export function createSync(opts: { file: string; deviceId: string; server: HubLike; onChange: (d: SyncDelta, local: boolean) => void }) {
   const store = new SyncStore(opts.deviceId, load(opts.file));
   let timer: NodeJS.Timeout | undefined;
   const write = () => {

@@ -28,3 +28,9 @@
 
 ## 0.3.2 - Unreleased
 - Wake: "Hi Solo", bare "Solo"/"Solomon" (quick activation default on). Desktop tray + background mode, start with Windows, auto microphone (opt-in). Phone: WakeService (Vosk, TTS), listen switch, permission flow, bundled offline model.
+
+## 0.4.0 - Unreleased
+- New `apps/relay` (internet hub) and `packages/crypto` (identity, E2E sessions, pairing proofs; Dart mirror).
+- Device ids are now SHA-256 of an Ed25519 public key; `DeviceInfo.pub`. Re-pair existing devices once.
+- Desktop: relay client, Hub (LAN + relay), Remote access UI, crypto self-test. Phone: relay client, peers list, pair over the internet, relay address.
+- Fix: bundle `@solo/crypto` into the Electron main build; AES-256-GCM instead of ChaCha20-Poly1305 (unsupported in Electron).

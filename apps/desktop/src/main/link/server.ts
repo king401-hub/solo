@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
 import { PROTOCOL_VERSION, parseEnvelope, type DeviceInfo, type Envelope } from "@solo/shared";
 import type { LinkCert } from "./cert";
+import { idOf } from "@solo/crypto";
 import { PairingSession, authProof, isPrivateAddress, newNonce, newToken, safeEqualHex, sas } from "./pairing";
 import type { DeviceStore } from "./store";
 
@@ -80,6 +81,9 @@ export class LinkServer extends EventEmitter<LinkEvents> {
     return { v: PROTOCOL_VERSION, id: randomUUID(), ts: Date.now(), from: this.opts.self.deviceId, type, payload };
   }
 
+  /** A presented public key must hash to the claimed device id (older clients send none). */
+  private keyOk(d: DeviceInfo) { return !d.pub || idOf(d.pub) === d.deviceId; }
+
   private onConnection(ws: WebSocket, remote: string | undefined) {
     const nonce = newNonce();
     let deviceId: string | undefined;
@@ -101,7 +105,7 @@ export class LinkServer extends EventEmitter<LinkEvents> {
       if (!deviceId) {
         if (env.type === "pair.request") {
           const { device, pairingCodeProof } = env.payload;
-          if (device.deviceId !== env.from) return reject("bad_proof");
+          if (device.deviceId !== env.from || !this.keyOk(device)) return reject("bad_proof");
           if (!this.pairing) return reject("expired");
           const r = this.pairing.verify(pairingCodeProof, nonce, device.deviceId, this.opts.cert.sha256);
           if (r !== "ok") return reject(r);
@@ -114,7 +118,7 @@ export class LinkServer extends EventEmitter<LinkEvents> {
         }
         if (env.type === "pair.ask") {
           const { device } = env.payload;
-          if (device.deviceId !== env.from) return reject("bad_proof");
+          if (device.deviceId !== env.from || !this.keyOk(device)) return reject("bad_proof");
           if (!isPrivateAddress(remote)) return reject("forbidden");
           if (this.pending.size >= MAX_PENDING_ASKS || [...this.pending.values()].some((p) => p.info.device.deviceId === device.deviceId)) return reject("busy");
           const id = randomUUID();
@@ -143,7 +147,7 @@ export class LinkServer extends EventEmitter<LinkEvents> {
         }
         if (env.type === "auth.hello") {
           const { device, proof } = env.payload;
-          if (device.deviceId !== env.from) return reject("bad_proof");
+          if (device.deviceId !== env.from || !this.keyOk(device)) return reject("bad_proof");
           const known = this.opts.store.get(device.deviceId);
           if (!known) return reject("unknown_device");
           if (known.revoked) return reject("revoked");

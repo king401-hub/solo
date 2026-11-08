@@ -38,6 +38,10 @@ contextBridge.exposeInMainWorld("solo", {
     setAutoApprove: (on: boolean): Promise<void> => ipcRenderer.invoke("link:setAutoApprove", on),
     renameDevice: (id: string, name: string): Promise<void> => ipcRenderer.invoke("link:renameDevice", id, name),
     renameSelf: (name: string): Promise<void> => ipcRenderer.invoke("link:renameSelf", name),
+    setRelayUrl: (url: string): Promise<string | undefined> => ipcRenderer.invoke("link:setRelayUrl", url),
+    relayHost: (): Promise<{ code: string; expiresAt: number }> => ipcRenderer.invoke("link:relayHost"),
+    relayCancel: (): Promise<void> => ipcRenderer.invoke("link:relayCancel"),
+    relayJoin: (code: string): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke("link:relayJoin", code),
     revoke: (id: string): Promise<void> => ipcRenderer.invoke("link:revoke", id),
     remove: (id: string): Promise<void> => ipcRenderer.invoke("link:remove", id),
     onChanged: (cb: (s: LinkSnapshot) => void) => {

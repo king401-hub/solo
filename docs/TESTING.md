@@ -63,3 +63,13 @@ Phone
 - [ ] Notification Stop button stops listening. Swipe the app from recents: listening continues. Force-stop the app: listening stops.
 - [ ] Deny the microphone permission: a clear message appears.
 - [ ] Change speech speed / voice gender on the desktop: phone replies change without opening the app.
+
+## Internet access checklist (needs a deployed relay)
+- [ ] Deploy the relay (apps/relay/README.md) and note its wss:// address.
+- [ ] Desktop > Devices > Remote access: paste the address, Save: status shows Connected.
+- [ ] Phone (on the same Wi-Fi first): Devices > the relay address appears automatically after a LAN pairing, or type it; status says Relay connected.
+- [ ] Turn Wi-Fi OFF on the phone (mobile data only): phone still shows the PC as "Connected over the internet"; change a setting on either side and see it on the other.
+- [ ] Laptop 2 and 3: install, set the same relay address, "Show a pairing code" on the laptop and "Pair over the internet" on the phone. Phone lists all three laptops.
+- [ ] Change a setting on laptop 2: laptops 1 and 3 and the phone all update.
+- [ ] Revoke the phone on one laptop: that laptop stops receiving from it.
+- [ ] Put the laptop to sleep and wake it: it reconnects and catches up.

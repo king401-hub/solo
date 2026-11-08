@@ -25,6 +25,10 @@ declare global {
         snapshot(): Promise<LinkSnapshot>; startPairing(): Promise<LinkSnapshot>; cancelPairing(): Promise<void>;
         approve(id: string): Promise<void>; deny(id: string): Promise<void>; setAutoApprove(on: boolean): Promise<void>;
         renameDevice(id: string, name: string): Promise<void>; renameSelf(name: string): Promise<void>;
+        setRelayUrl(url: string): Promise<string | undefined>;
+        relayHost(): Promise<{ code: string; expiresAt: number }>;
+        relayCancel(): Promise<void>;
+        relayJoin(code: string): Promise<{ ok: true } | { ok: false; error: string }>;
         revoke(id: string): Promise<void>; remove(id: string): Promise<void>;
         onChanged(cb: (s: LinkSnapshot) => void): () => void;
       };

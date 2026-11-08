@@ -39,6 +39,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   flutter_foreground_task: ^11.0.3
   shared_preferences: ^2.5.5
+  cryptography: ^2.9.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

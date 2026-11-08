@@ -40,6 +40,53 @@ function EditableName({ value, onSave, label }: { value: string; onSave: (n: str
   );
 }
 
+const input = { padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", maxWidth: "100%" } as const;
+
+function RemoteAccess({ snap }: { snap: import("../main/link/service").LinkSnapshot }) {
+  const [url, setUrl] = useState(snap.relay.url ?? "");
+  const [err, setErr] = useState<string>();
+  const [code, setCode] = useState("");
+  const [joinMsg, setJoinMsg] = useState<string>();
+  useEffect(() => { setUrl(snap.relay.url ?? ""); }, [snap.relay.url]);
+  const label = { off: "Off", connecting: "Connecting…", online: "Connected" }[snap.relay.status];
+  return (
+    <section className="card" aria-label="Remote access">
+      <strong>Remote access (over the internet)</strong>
+      <p className="sub" style={{ margin: "6px 0 12px", fontSize: 13 }}>
+        Lets your phone and laptops reach each other from anywhere, on mobile data or any network, through your own Solo relay.
+        Messages are end-to-end encrypted; the relay cannot read them. Setting the address here sets it on every paired device.
+      </p>
+      <div className="row" style={{ borderTop: 0 }}>
+        <input aria-label="Relay address" style={{ ...input, flex: 1 }} placeholder="wss://your-relay.example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="btn primary" onClick={() => void window.solo.link.setRelayUrl(url).then(setErr)}>Save</button>
+        <span className={`dot ${snap.relay.status === "online" ? "on" : ""}`} aria-hidden /><span className="sub" style={{ margin: 0 }}>{label}</span>
+      </div>
+      {(err ?? snap.relay.error) && <p role="alert" style={{ color: "var(--danger)", margin: "4px 0" }}>{err ?? snap.relay.error}</p>}
+      {snap.relay.status === "online" && (
+        <>
+          <div className="row">
+            {snap.relay.pairing ? (
+              <div>
+                <div className="code" style={{ fontSize: 30, letterSpacing: 4 }} role="status" aria-label={`Remote pairing code ${snap.relay.pairing.code}`}>{snap.relay.pairing.code}</div>
+                <Countdown until={snap.relay.pairing.expiresAt} />
+                <p className="sub" style={{ margin: "4px 0 0", fontSize: 13 }}>On the other device choose “Pair over the internet” and enter this code.</p>
+              </div>
+            ) : <span>Pair a phone or laptop that is on a different network</span>}
+            {snap.relay.pairing
+              ? <button className="btn" onClick={() => void window.solo.link.relayCancel()}>Cancel</button>
+              : <button className="btn primary" onClick={() => void window.solo.link.relayHost()}>Show a pairing code</button>}
+          </div>
+          <div className="row">
+            <input aria-label="Code from the other device" style={{ ...input, flex: 1 }} placeholder="Enter a code shown on another device (XXXX-XXXX-XXXX)" value={code} onChange={(e) => setCode(e.target.value)} />
+            <button className="btn" onClick={() => void window.solo.link.relayJoin(code).then((r) => { setJoinMsg(r.ok ? "Paired" : r.error); if (r.ok) setCode(""); })}>Pair</button>
+          </div>
+          {joinMsg && <p role="status" className="sub" style={{ margin: "4px 0" }}>{joinMsg}</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function Devices() {
   const snap = useLink();
   if (!snap) return <p className="sub">Starting link…</p>;
@@ -62,6 +109,8 @@ export function Devices() {
           <button className="btn danger" onClick={() => window.solo.link.deny(r.id)}>Deny</button>
         </section>
       ))}
+
+      <RemoteAccess snap={snap} />
 
       <section className="card" aria-label="Automatic pairing">
         <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
@@ -97,7 +146,7 @@ export function Devices() {
             <div>
               <EditableName value={d.name} label={d.name} onSave={(n) => window.solo.link.renameDevice(d.deviceId, n)} /> <span className="sub">· {d.kind}</span>
               <div className="sub" style={{ margin: 0, fontSize: 12 }}>
-                {d.revoked ? "Revoked" : d.online ? "Connected" : d.lastSeen ? `Last seen ${new Date(d.lastSeen).toLocaleString()}` : "Offline"}
+                {d.revoked ? "Revoked" : d.online ? (d.via === "relay" ? "Connected over the internet" : "Connected on this network") : d.lastSeen ? `Last seen ${new Date(d.lastSeen).toLocaleString()}` : "Offline"}
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

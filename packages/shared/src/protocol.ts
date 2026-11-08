@@ -11,6 +11,8 @@ export const DeviceInfo = z.object({
   kind: DeviceKind,
   name: z.string().min(1).max(80),
   appVersion: z.string(),
+  /** Ed25519 public key (base64url). deviceId === SHA-256(pub) hex, so an id cannot be claimed without the key. */
+  pub: z.string().min(40).max(48).optional(),
 });
 export type DeviceInfo = z.infer<typeof DeviceInfo>;
 

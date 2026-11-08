@@ -49,3 +49,12 @@ Threats: rogue device on LAN, prompt injection (web pages/notifications telling 
 - Audio never leaves the device: desktop uses local Whisper, phone uses offline Vosk; nothing is stored. Only the text of what was heard is kept (last few lines, for the on-screen log).
 - Two-stage detection on the phone limits false triggers. Ambient speech without a wake phrase is dropped.
 - Solo does not execute anything from voice yet (Phase 6 will add confirmation for consequential actions).
+
+## Internet access (relay)
+- **What the relay can see:** which device ids are online (ids are hashes of keys, not names), message sizes and timing, and the IP addresses that connect. **It cannot read or alter messages**: they are end-to-end encrypted and authenticated between devices. It stores nothing (memory only). A malicious or compromised relay can drop traffic (denial of service) but cannot impersonate a device or read data.
+- **Authentication:** a device proves it owns its id with an Ed25519 signature over a fresh nonce; peers authenticate each other again with signed handshakes against keys learned at pairing, so an id cannot be claimed without its key and a relay cannot insert itself.
+- **Pairing codes:** 60 bits, expire in 2 minutes, work once, lock after 5 bad proofs; the relay blocks IPs that guess rendezvous keys (10 failures, 10 minutes). Residual risk: a relay operator who records a pairing exchange could brute-force the 60-bit code offline in principle (about 10^18 guesses); do not treat pairing over an untrusted relay as stronger than the code. Use the same-network pairing (confirmation digits + TLS pin) when possible.
+- **Revocation:** removing/revoking a device on a peer makes it ignore that device's relay traffic immediately.
+- **Transport:** wss:// (TLS from the host) is mandatory except for loopback/private addresses.
+- **Known limits:** no offline message queue (state is re-sent when devices reconnect); keys stored in plaintext files protected only by file permissions (desktop) and Android secure storage (phone); no key rotation or multi-device revocation list yet; the relay sees connection metadata.
+- **Pre-release migration:** device ids changed from random values to key hashes, so devices paired before this change must be paired again once.

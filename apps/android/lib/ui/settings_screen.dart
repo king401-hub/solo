@@ -58,6 +58,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _syncText(LinkState s) {
     if (!s.paired) return 'Not paired. Settings are kept on this phone and will merge when you pair.';
+    final online = s.onlinePeers;
+    if (online.isNotEmpty && s.status != LinkStatus.connected) {
+      final t2 = s.lastSync == null ? null : DateTime.fromMillisecondsSinceEpoch(s.lastSync!);
+      final when2 = t2 == null ? '' : ' · last sync ${t2.hour.toString().padLeft(2, '0')}:${t2.minute.toString().padLeft(2, '0')}';
+      return 'In sync with ${online.map((p) => p.name).join(', ')} over the internet$when2';
+    }
     final t = s.lastSync == null ? null : DateTime.fromMillisecondsSinceEpoch(s.lastSync!);
     final when = t == null ? '' : ' · last sync ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
     return s.status == LinkStatus.connected

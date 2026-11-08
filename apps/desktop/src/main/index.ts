@@ -71,6 +71,10 @@ app.whenReady().then(async () => {
   ipcMain.handle("link:setAutoApprove", (_e, on: unknown) => link.setAutoApprove(on === true));
   ipcMain.handle("link:renameDevice", (_e, id: unknown, name: unknown) => link.renameDevice(str(id), str(name)));
   ipcMain.handle("link:renameSelf", (_e, name: unknown) => link.renameSelf(str(name)));
+  ipcMain.handle("link:setRelayUrl", (_e, url: unknown) => link.setRelayUrl(str(url)));
+  ipcMain.handle("link:relayHost", () => link.relayHostPairing());
+  ipcMain.handle("link:relayCancel", () => link.relayCancelPairing());
+  ipcMain.handle("link:relayJoin", (_e, code: unknown) => link.relayJoin(str(code)));
   ipcMain.handle("link:revoke", (_e, id: unknown) => { if (typeof id === "string") link.revoke(id); });
   ipcMain.handle("link:remove", (_e, id: unknown) => { if (typeof id === "string") link.remove(id); });
   app.on("before-quit", () => { void link.stop(); });

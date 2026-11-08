@@ -30,7 +30,8 @@ class _LinkTaskHandler extends TaskHandler {
   }
 
   void _updateNotification(LinkState s) {
-    final text = switch (s.status) {
+    final names = s.onlinePeers.map((p) => p.name).join(', ');
+    final text = s.onlinePeers.isNotEmpty ? 'Connected to $names' : switch (s.status) {
       LinkStatus.connected => 'Connected to ${s.desktopName}',
       LinkStatus.connecting => 'Connecting…',
       LinkStatus.offline => 'Waiting for ${s.desktopName ?? 'desktop'}…',
@@ -62,6 +63,12 @@ class _LinkTaskHandler extends TaskHandler {
         await link.setDeviceName(data['name'] as String);
       case 'autoPair':
         await link.setAutoPair(data['on'] as bool);
+      case 'relayUrl':
+        await reply(await link.setRelayUrl(data['url'] as String));
+      case 'remotePair':
+        await reply(await link.pairRemote(data['code'] as String));
+      case 'removePeer':
+        await link.removePeer(data['id'] as String);
       case 'setting':
         await link.setAssistantSetting(data['key'] as String, data['value'] as Object);
     }
@@ -150,6 +157,13 @@ class RemoteLink extends LinkApi {
   Future<String?> pair(String host, int port, String code) => _call({'cmd': 'pair', 'host': host, 'port': port, 'code': code});
   @override
   Future<String?> ask(String host, int port) => _call({'cmd': 'ask', 'host': host, 'port': port});
+  @override
+  Future<String?> setRelayUrl(String url) => _call({'cmd': 'relayUrl', 'url': url});
+  @override
+  Future<String?> pairRemote(String code) => _call({'cmd': 'remotePair', 'code': code});
+  @override
+  Future<void> removePeer(String id) async => FlutterForegroundTask.sendDataToTask({'cmd': 'removePeer', 'id': id});
+
   @override
   Future<void> forget() async => FlutterForegroundTask.sendDataToTask({'cmd': 'forget'});
   @override

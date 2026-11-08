@@ -82,3 +82,19 @@ SQLite (better-sqlite3) per device; embeddings stored as blobs, with brute-force
 **Platform limits:**
 - Windows: nothing runs when Solo is fully quit. To be there after a reboot, enable "Start Solo with Windows" and "Turn the microphone on automatically".
 - Android: needs RECORD_AUDIO and a visible notification; Android 14+ only lets a microphone foreground service start while the app is visible, so it cannot start at boot; force-stopping the app ends it; Huawei/EMUI may also need "run in the background" allowed. Android shows its microphone indicator while it runs.
+
+## Internet access: relay + end-to-end encryption (Phase 11 pulled forward)
+Goal: devices connect over any internet (a phone on mobile data, laptops on any network), not only the same Wi-Fi, and one phone works with several laptops.
+
+```
+ phone ──wss──►  Solo relay  ◄──wss── laptop 1      (every device connects OUT; no port forwarding)
+                (routes by id,  ◄──wss── laptop 2
+                 sees only      ◄──wss── laptop 3
+                 ciphertext)
+```
+- **Relay** (`apps/relay`): Node + `ws`, in-memory only, no accounts. A device proves it owns its id with an Ed25519 signature over a fresh nonce; the relay forwards opaque bodies to the addressed id, reports presence, and matches pairing codes by a hashed rendezvous key. Limits: 20 connections/IP, 50 frames/s, 256 KB frames, 2-minute codes, IP block after 10 wrong joins. Deploy it free on Fly.io/Render/Railway (see `apps/relay/README.md`).
+- **Identity** (`packages/crypto`, Dart mirror in `apps/android/lib/relay/e2e.dart`): each device has an Ed25519 key; its device id is SHA-256 of the public key. LAN and relay use the same id, so a device paired on Wi-Fi is automatically reachable over the internet.
+- **Pairing over the internet:** one device shows a 12-character code (60 bits, Crockford base32). The other enters it. The relay only sees HMAC(code) as the rendezvous key. Both sides then exchange public keys authenticated by HMAC proofs of the code (bound to both ids, keys and a nonce). 5 wrong proofs lock the code.
+- **Sessions:** between paired devices, a signed ephemeral X25519 handshake (mutual authentication, forward secrecy), HKDF-SHA256 keys per direction, AES-256-GCM frames with counters (replay/reorder rejected). The device with the lower id initiates, so two devices never handshake simultaneously.
+- **Hub:** on the desktop, `Hub` merges the LAN link and the relay as one network (LAN preferred, relay fallback). Sync is flooded across all connected devices (last-writer-wins, idempotent), so a phone paired with three laptops keeps all of them identical, even laptops that never met.
+- The relay address is itself a synced setting (`settings/relay`): set it on one device and every paired device uses it.
