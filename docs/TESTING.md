@@ -73,3 +73,17 @@ Phone
 - [ ] Change a setting on laptop 2: laptops 1 and 3 and the phone all update.
 - [ ] Revoke the phone on one laptop: that laptop stops receiving from it.
 - [ ] Put the laptop to sleep and wake it: it reconnects and catches up.
+
+## File sync: automated and manual
+Automated (real engines, one machine, loopback): `npx vitest run sync.integration solo-flow` in apps/desktop. Covers initial sync, edit/rename/delete both ways, exclusions, offline catch-up (8 MB file), conflicts, history and restore, kill-mid-transfer and resume, periodic rescan, API lock-down; plus the Solo layer (identity introduction, offer/accept into a different path, untrusted introductions ignored).
+
+Manual, REQUIRED before relying on it (needs two PCs on different internet connections; loopback cannot test this):
+- [ ] On both PCs: Files > Turn on file sync. Allow the Windows firewall prompt for private networks.
+- [ ] Both PCs already paired in Devices (LAN or relay). Files shows the other as "Connected for file sync" within a minute or two (public discovery must be on for different networks).
+- [ ] PC A: Sync a folder (e.g. D:\Projects\SchoolDom), share with PC B. PC B: accept, choose its own path. Files appear on B.
+- [ ] Put PC A on a phone hotspot and PC B on home Wi-Fi (different networks). Edit a file on B in VS Code: it reaches A.
+- [ ] Switch PC A off. Edit several files on B (also rename one, delete one, add a big one). Switch A on: it catches up; open the project in Visual Studio.
+- [ ] Edit the same file on both while apart: after reconnecting, both versions exist; resolve in Files > Conflicts.
+- [ ] History: overwrite a file remotely; Files > History & recovery restores the old version.
+- [ ] Confirm node_modules, .git and *.sqlite did not sync. Check Task Manager: no syncthing.exe remains after quitting Solo.
+- [ ] Turn off public discovery and relays: sync works on the same network only.

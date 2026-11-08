@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 import type { LinkSnapshot } from "../main/link/service";
+import type { FileSyncState } from "../main/files/service";
+import type { Conflict, VersionEntry } from "../main/files/conflicts";
 declare global {
   interface Window {
     solo: {
@@ -15,6 +17,27 @@ declare global {
         warmup(): Promise<{ ok: true } | { ok: false; error: string }>;
         transcribe(pcm: Float32Array): Promise<string>;
         onModelProgress(cb: (pct: number) => void): () => void;
+      };
+      files: {
+        state(): Promise<FileSyncState>;
+        setEnabled(on: boolean): Promise<void>;
+        setPrivacy(p: { globalDiscovery: boolean; relays: boolean; nat: boolean; localDiscovery: boolean }): Promise<void>;
+        choose(): Promise<string | undefined>;
+        addFolder(i: { path: string; label: string; deviceSoloIds: string[]; ignore?: Record<string, boolean>; keepDays?: number }): Promise<string>;
+        accept(folderId: string, path: string): Promise<void>;
+        share(folderId: string, soloId: string): Promise<void>;
+        remove(folderId: string): Promise<void>;
+        pause(folderId: string, paused: boolean): Promise<void>;
+        rescan(folderId: string): Promise<void>;
+        getIgnores(folderId: string): Promise<string[]>;
+        setIgnores(folderId: string, lines: string[]): Promise<void>;
+        errors(folderId: string): Promise<{ path: string; error: string }[]>;
+        conflicts(folderId: string): Promise<Conflict[]>;
+        resolve(folderId: string, rel: string, action: "keep-current" | "use-conflict" | "keep-both"): Promise<void>;
+        versions(folderId: string, rel?: string): Promise<VersionEntry[]>;
+        restore(folderId: string, versionRel: string): Promise<string>;
+        open(folderId: string): Promise<void>;
+        reveal(folderId: string, rel: string): Promise<void>;
       };
       sync: {
         get(table: string, id: string): Promise<Record<string, unknown> | undefined>;

@@ -137,6 +137,18 @@ export const SyncDeltaMsg = z.object({
   }),
 });
 
+/**
+ * File sync (Syncthing) identity exchange. Sent between already-trusted Solo devices over the encrypted link so they can
+ * add each other as sync devices without the user copying long ids around. It only introduces the device; sharing any
+ * folder still requires an explicit action by the user on both sides.
+ */
+export const SYNCTHING_ID = /^[A-Z2-7]{7}(-[A-Z2-7]{7}){7}$/;
+export const FilesDevice = z.object({
+  ...base,
+  type: z.literal("files.device"),
+  payload: z.object({ syncthingId: z.string().regex(SYNCTHING_ID), name: z.string().min(1).max(80) }),
+});
+
 export const Envelope = z.discriminatedUnion("type", [
   AuthChallenge,
   PairRequest,
@@ -151,6 +163,7 @@ export const Envelope = z.discriminatedUnion("type", [
   TaskDispatch,
   TaskUpdate,
   SyncDeltaMsg,
+  FilesDevice,
 ]);
 export type Envelope = z.infer<typeof Envelope>;
 

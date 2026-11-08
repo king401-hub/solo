@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, session, shell } from "electron";
-import { join } from "node:path";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { isAbsolute, join, parse, resolve } from "node:path";
 import { startLink } from "./link/service";
 import { createStt } from "./voice/stt";
 import { setupBackground } from "./background";
@@ -75,6 +75,61 @@ app.whenReady().then(async () => {
   ipcMain.handle("link:relayHost", () => link.relayHostPairing());
   ipcMain.handle("link:relayCancel", () => link.relayCancelPairing());
   ipcMain.handle("link:relayJoin", (_e, code: unknown) => link.relayJoin(str(code)));
+  // ---- File sync (every argument is validated here; the renderer is not trusted with raw paths or ids) ----
+  const files = link.files;
+  const userData = resolve(app.getPath("userData"));
+  const goodFolder = (p: unknown): string | undefined => {
+    if (typeof p !== "string" || !isAbsolute(p)) return undefined;
+    const r = resolve(p);
+    if (parse(r).root === r) return undefined; // not a whole drive
+    if (r === userData || userData.startsWith(r + "\\") || r.startsWith(userData)) return undefined; // never Solo's own data (it holds the engine's database)
+    return r;
+  };
+  const sid = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(v) ? v : "");
+  ipcMain.handle("files:state", () => files.state());
+  ipcMain.handle("files:setEnabled", (_e, on: unknown) => files.setEnabled(on === true));
+  ipcMain.handle("files:setPrivacy", (_e, p: unknown) => {
+    const o = (p ?? {}) as Record<string, unknown>;
+    return files.setPrivacy({ globalDiscovery: o["globalDiscovery"] === true, relays: o["relays"] === true, nat: o["nat"] === true, localDiscovery: o["localDiscovery"] === true });
+  });
+  ipcMain.handle("files:choose", async () => {
+    const r = await dialog.showOpenDialog(win!, { properties: ["openDirectory", "createDirectory"] });
+    return r.canceled ? undefined : r.filePaths[0];
+  });
+  ipcMain.handle("files:addFolder", (_e, i: unknown) => {
+    const o = (i ?? {}) as Record<string, unknown>;
+    const path = goodFolder(o["path"]);
+    if (!path) throw new Error("Choose a normal folder (not a whole drive, and not Solo's own data folder)");
+    const ids = Array.isArray(o["deviceSoloIds"]) ? (o["deviceSoloIds"] as unknown[]).map(sid).filter(Boolean) : [];
+    const ig = (o["ignore"] ?? {}) as Record<string, unknown>;
+    const flag = (k: string) => (typeof ig[k] === "boolean" ? (ig[k] as boolean) : undefined);
+    return files.addFolder({
+      path, label: typeof o["label"] === "string" ? (o["label"] as string).slice(0, 80) : path, deviceSoloIds: ids,
+      ignore: { dependencies: flag("dependencies"), buildOutput: flag("buildOutput"), caches: flag("caches"), databases: flag("databases"), git: flag("git") } as never,
+      keepDays: typeof o["keepDays"] === "number" ? Math.min(3650, Math.max(1, Math.round(o["keepDays"] as number))) : 90,
+    });
+  });
+  ipcMain.handle("files:accept", (_e, folderId: unknown, path: unknown) => {
+    const p = goodFolder(path);
+    if (!p) throw new Error("Choose a normal folder (not a whole drive, and not Solo's own data folder)");
+    return files.acceptPending(sid(folderId), p);
+  });
+  ipcMain.handle("files:share", (_e, folderId: unknown, soloId: unknown) => files.share(sid(folderId), sid(soloId)));
+  ipcMain.handle("files:remove", (_e, folderId: unknown) => files.removeFolder(sid(folderId)));
+  ipcMain.handle("files:pause", (_e, folderId: unknown, paused: unknown) => files.setPaused(sid(folderId), paused === true));
+  ipcMain.handle("files:rescan", (_e, folderId: unknown) => files.rescan(sid(folderId)));
+  ipcMain.handle("files:getIgnores", (_e, folderId: unknown) => files.getIgnores(sid(folderId)));
+  ipcMain.handle("files:setIgnores", (_e, folderId: unknown, lines: unknown) => files.setIgnores(sid(folderId), Array.isArray(lines) ? (lines as unknown[]).filter((l): l is string => typeof l === "string").map((l) => l.slice(0, 300)) : []));
+  ipcMain.handle("files:errors", (_e, folderId: unknown) => files.errors(sid(folderId)));
+  ipcMain.handle("files:conflicts", (_e, folderId: unknown) => files.conflicts(sid(folderId)));
+  ipcMain.handle("files:resolve", (_e, folderId: unknown, rel: unknown, action: unknown) => {
+    if (typeof rel !== "string" || !["keep-current", "use-conflict", "keep-both"].includes(String(action))) throw new Error("Invalid request");
+    return files.resolve(sid(folderId), rel, action as "keep-current" | "use-conflict" | "keep-both");
+  });
+  ipcMain.handle("files:versions", (_e, folderId: unknown, rel: unknown) => files.versions(sid(folderId), typeof rel === "string" ? rel : undefined));
+  ipcMain.handle("files:restore", (_e, folderId: unknown, versionRel: unknown) => files.restore(sid(folderId), String(versionRel)));
+  ipcMain.handle("files:open", async (_e, folderId: unknown) => { await shell.openPath(await files.folderRoot(sid(folderId))); });
+  ipcMain.handle("files:reveal", async (_e, folderId: unknown, rel: unknown) => { shell.showItemInFolder(await files.absPath(sid(folderId), String(rel))); });
   ipcMain.handle("link:revoke", (_e, id: unknown) => { if (typeof id === "string") link.revoke(id); });
   ipcMain.handle("link:remove", (_e, id: unknown) => { if (typeof id === "string") link.remove(id); });
   app.on("before-quit", () => { void link.stop(); });

@@ -34,3 +34,7 @@
 - Device ids are now SHA-256 of an Ed25519 public key; `DeviceInfo.pub`. Re-pair existing devices once.
 - Desktop: relay client, Hub (LAN + relay), Remote access UI, crypto self-test. Phone: relay client, peers list, pair over the internet, relay address.
 - Fix: bundle `@solo/crypto` into the Electron main build; AES-256-GCM instead of ChaCha20-Poly1305 (unsupported in Electron).
+
+## 0.5.0 - Unreleased
+- File synchronisation: Syncthing engine supervised by Solo, `files.device` protocol message, Files screen (devices, offers, folders, conflicts, history, ignore rules, privacy), safe default exclusions, docs/SYNC.md.
+- Fix: LinkServer.listen now rejects on a busy port so the app falls back to a free port instead of hanging.

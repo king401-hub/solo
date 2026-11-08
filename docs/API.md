@@ -28,3 +28,6 @@ Bodies between devices (opaque to the relay): pairing `pair.req/pair.ack/pair.no
 Pairing code: `rendezvousKey = hex(HMAC-SHA256(code, "solo-rdv-v1"))[0:32]`; `proof = hex(HMAC-SHA256(code, "solo-rpair-v1|<req|ack>|<hostId>|<joinerId>|<nonce>|<joinerPub>|<hostPub or empty for req>"))`.
 Interop vectors (TS and Dart tests): ed25519 seed 00..1f -> pub `A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg`; x25519 shared of 0xaa.. and 0xbb.. keys `2f6d4d02...5229`; AES-GCM ciphertext `j28t9n1HUySAWD_W5_mgDILMTOeojQjAubU`; rendezvous `97ade306...cc`.
 `DeviceInfo` gained an optional `pub`; a presented key must hash to the device id (LAN link enforces this).
+
+## File sync identity (`files.device`)
+`files.device {syncthingId, name}`: sent between already-trusted Solo devices (LAN or relay) so each can add the other's Syncthing id. `syncthingId` must match `^[A-Z2-7]{7}(-[A-Z2-7]{7}){7}$`. It only introduces the device; a folder is shared only when the user explicitly shares it and the receiver explicitly accepts it. Messages from devices Solo does not trust are ignored.

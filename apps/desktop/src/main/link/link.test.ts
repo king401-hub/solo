@@ -149,6 +149,16 @@ describe("link server", () => {
     expect(got.map((e) => e.payload.rowId)).toEqual(["2"]);
   });
 
+  it("rejects (rather than crashing) when the port is already taken, and can then fall back to a free port", async () => {
+    const first = await setup();
+    const store = new DeviceStore(join(mkdtempSync(join(tmpdir(), "solo-")), "devices.json"));
+    const second = new LinkServer({ self, cert, store });
+    await expect(second.listen(first.port, "127.0.0.1")).rejects.toThrow(/EADDRINUSE/);
+    const port = await second.listen(0, "127.0.0.1"); // the same object can still listen elsewhere
+    cleanup.push(() => second.close());
+    expect(port).not.toBe(first.port);
+  });
+
   it("serves a stable, pinnable certificate", async () => {
     const { port, server } = await setup();
     const fp = await new Promise<string>((res) => {

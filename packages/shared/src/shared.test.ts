@@ -13,6 +13,17 @@ describe("protocol", () => {
   });
 });
 
+describe("files.device", () => {
+  const base = { v: PROTOCOL_VERSION, id: "m1", ts: 1, from: "dev-12345678", type: "files.device" };
+  const id = "MFZWI3D-BONSGYC-YLTMRWG-C43ENR5-QXGZDMM-FZWI3DP-BONSGYY-LTMRWAD";
+  it("accepts a well-formed Syncthing id and rejects anything else", () => {
+    expect(parseEnvelope({ ...base, payload: { syncthingId: id, name: "Dell" } })?.type).toBe("files.device");
+    expect(parseEnvelope({ ...base, payload: { syncthingId: "not-an-id", name: "Dell" } })).toBeNull();
+    expect(parseEnvelope({ ...base, payload: { syncthingId: id.toLowerCase(), name: "Dell" } })).toBeNull();
+    expect(parseEnvelope({ ...base, payload: { syncthingId: id } })).toBeNull();
+  });
+});
+
 describe("permission policy", () => {
   it("forbids destructive shell", () => {
     expect(assessAction({ kind: "shell.run", args: { command: "rm -rf /" } })).toBe("forbidden");

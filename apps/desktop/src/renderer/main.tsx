@@ -4,6 +4,7 @@ import { Orb } from "./Orb";
 import { Voice, orbFor } from "./voice/Voice";
 import { useVoice } from "./voice/useVoice";
 import { Devices, useLink } from "./Devices";
+import { Files } from "./Files";
 import "./tokens.css";
 import "./shell.css";
 
@@ -14,6 +15,7 @@ const SCREENS = [
   { id: "memory", label: "Memory", phase: 5 },
   { id: "tasks", label: "Tasks", phase: 6 },
   { id: "devices", label: "Devices", phase: 0 },
+  { id: "files", label: "Files", phase: 0 },
   { id: "audio", label: "Audio & calls", phase: 8 },
   { id: "models", label: "Models", phase: 10 },
   { id: "usage", label: "Usage & budget", phase: 4 },
@@ -61,7 +63,7 @@ function App() {
         ))}
       </nav>
       <main className="main">
-        {screen === "home" ? <Home /> : screen === "devices" ? <Devices /> : screen === "voice" ? <Voice /> : <Planned label={cur.label} phase={cur.phase} />}
+        {screen === "home" ? <Home /> : screen === "devices" ? <Devices /> : screen === "voice" ? <Voice /> : screen === "files" ? <Files /> : <Planned label={cur.label} phase={cur.phase} />}
       </main>
     </div>
   );

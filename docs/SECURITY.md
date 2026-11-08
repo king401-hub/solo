@@ -58,3 +58,14 @@ Threats: rogue device on LAN, prompt injection (web pages/notifications telling 
 - **Transport:** wss:// (TLS from the host) is mandatory except for loopback/private addresses.
 - **Known limits:** no offline message queue (state is re-sent when devices reconnect); keys stored in plaintext files protected only by file permissions (desktop) and Android secure storage (phone); no key rotation or multi-device revocation list yet; the relay sees connection metadata.
 - **Pre-release migration:** device ids changed from random values to key hashes, so devices paired before this change must be paired again once.
+
+## File synchronisation
+- Opt-in and off by default; the engine process does not run until the user turns it on. Windows will ask once whether to allow network access.
+- The engine's control API listens on 127.0.0.1 only, on a random port, and refuses requests without a random per-install key. Usage reports and crash reports are declined, automatic upgrades are disabled.
+- Device identities are engine TLS certificates; Solo introduces them only between devices it already trusts, over its end-to-end encrypted link. Adding a device never shares a folder.
+- The renderer is not trusted with raw paths or ids: folder paths must be absolute, not a drive root and not Solo's own data folder (it holds the engine database); ids are validated; conflict and restore paths are confined to the synced folder (path traversal refused, tested).
+- Replaced or discarded files go to the Recycle Bin, never straight to deletion; conflicting versions are always kept.
+- Public discovery servers and relays (optional, on by default, switchable in the app) learn that devices exist and when they connect, not file contents.
+- Risky content is excluded by default: dependency and build folders, live databases, and `.git` (see SYNC.md).
+- Supply chain: the engine binary is pinned by version and SHA-256 (verified against the checksum list on the release page); its PGP signature was not verified when pinned.
+- Orphan protection: the engine runs as a supervisor plus worker; Solo kills the whole process tree when it must force-stop it, so no engine is left syncing in the background after Solo exits (found and fixed during testing).

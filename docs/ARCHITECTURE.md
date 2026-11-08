@@ -98,3 +98,6 @@ Goal: devices connect over any internet (a phone on mobile data, laptops on any 
 - **Sessions:** between paired devices, a signed ephemeral X25519 handshake (mutual authentication, forward secrecy), HKDF-SHA256 keys per direction, AES-256-GCM frames with counters (replay/reorder rejected). The device with the lower id initiates, so two devices never handshake simultaneously.
 - **Hub:** on the desktop, `Hub` merges the LAN link and the relay as one network (LAN preferred, relay fallback). Sync is flooded across all connected devices (last-writer-wins, idempotent), so a phone paired with three laptops keeps all of them identical, even laptops that never met.
 - The relay address is itself a synced setting (`settings/relay`): set it on one device and every paired device uses it.
+
+## File synchronisation (see SYNC.md)
+Real folders are kept identical across devices by the Syncthing engine (MPL-2.0, shipped unmodified, driven by Solo over a loopback-only authenticated API). Files travel engine-to-engine, directly or through encrypted public relays; they never touch a Solo server or the Solo relay. Solo adds: identity introduction between already-trusted devices (`files.device`), safe default exclusions, conflict and history screens, status, and process supervision. Opt-in; off by default.

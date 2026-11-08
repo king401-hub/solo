@@ -44,8 +44,19 @@ export class LinkServer extends EventEmitter<LinkEvents> {
     this.http = createServer({ cert: this.opts.cert.cert, key: this.opts.cert.key });
     this.wss = new WebSocketServer({ server: this.http, maxPayload: 1 << 20 });
     this.wss.on("connection", (ws, req) => this.onConnection(ws, req.socket.remoteAddress));
-    await new Promise<void>((res) => this.http!.listen(port, host, res));
-    const addr = this.http.address();
+    // ws re-emits its HTTP server's errors; without a listener a busy port would be an uncaught exception.
+    this.wss.on("error", () => { /* the same error rejects listen() below */ });
+    const http = this.http;
+    try {
+      // Reject (instead of an unhandled 'error' event) when the port is taken, so callers can fall back to another port.
+      await new Promise<void>((res, rej) => { http.once("error", rej); http.listen(port, host, () => { http.off("error", rej); res(); }); });
+    } catch (e) {
+      this.wss?.close();
+      this.http = undefined;
+      this.wss = undefined;
+      throw e;
+    }
+    const addr = http.address();
     return typeof addr === "object" && addr ? addr.port : port;
   }
 

@@ -14,3 +14,6 @@ apps/android/local.properties
 *.keystore
 apps/android/android/build/
 apps/android/android/app/src/main/assets/model-en-us/
+
+# Syncthing engine binary (fetched by apps/desktop/tools/fetch-syncthing.ps1)
+apps/desktop/resources/syncthing/syncthing.exe

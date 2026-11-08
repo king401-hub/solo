@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, shell } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname, networkInterfaces } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import { DeviceStore } from "./store";
 import { generateIdentity, identityFromSeed, selfTest, type Identity } from "@solo/crypto";
 import { createSync } from "../sync/sync";
 import { Hub } from "./hub";
+import { createFiles } from "../files/service";
 import { RelayClient, validRelayUrl } from "../relay/relayClient";
 import type { SyncDelta } from "@solo/shared";
 
@@ -72,6 +73,14 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
   let port: number;
   try { port = await server.listen(LINK_PORT); } catch { port = await server.listen(0); }
 
+  // File sync (Syncthing engine) is opt-in; it only starts when the user has turned it on.
+  const syncthingBin = app.isPackaged ? join(process.resourcesPath, "syncthing", "syncthing.exe") : join(app.getAppPath(), "resources", "syncthing", "syncthing.exe");
+  const files = createFiles({
+    dir, binary: syncthingBin, hub, store, selfName: () => self.name, onChange: () => onChange(),
+    trash: (p) => shell.trashItem(p), // replaced files go to the Recycle Bin, never straight to oblivion
+  });
+  void files.start();
+
   const bonjour = new Bonjour();
   bonjour.publish({ name: `Solo ${self.name}`, type: "solo", port, txt: { id: self.deviceId, fp: cert.sha256 } });
 
@@ -94,7 +103,7 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
   });
 
   return {
-    snapshot, server, sync: sync.store, hub,
+    snapshot, server, sync: sync.store, hub, files,
     startPairing: () => { pairing = server.startPairing(); onChange(); return snapshot(); },
     cancelPairing: () => { server.cancelPairing(); pairing = undefined; onChange(); },
     approve: (id: string) => server.approve(id),
@@ -119,6 +128,6 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
     relayJoin: (code: string) => relay.joinPairing(code),
     revoke: (id: string) => { store.revoke(id); server.disconnect(id); onChange(); },
     remove: (id: string) => { server.disconnect(id); store.remove(id); relay.refreshWatch(); onChange(); },
-    stop: async () => { relay.stop(); sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
+    stop: async () => { await files.stop(); relay.stop(); sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
   };
 }
