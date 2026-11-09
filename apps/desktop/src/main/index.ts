@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, session, shell } from "electron";
+import { mkdirSync } from "node:fs";
 import { isAbsolute, join, parse, resolve } from "node:path";
 import { startLink } from "./link/service";
 import { ASR_MODELS, createStt, type AsrPreset, type Stt } from "./voice/stt";
@@ -166,7 +167,7 @@ app.whenReady().then(async () => {
   // ---- Files received from other devices ----
   const inbox = link.inbox;
   ipcMain.handle("inbox:state", () => ({ folder: inbox.folder, received: inbox.received(), receiving: inbox.receiving() }));
-  ipcMain.handle("inbox:openFolder", async () => { await shell.openPath(inbox.folder); });
+  ipcMain.handle("inbox:openFolder", async () => { mkdirSync(inbox.folder, { recursive: true }); await shell.openPath(inbox.folder); });
   ipcMain.handle("inbox:reveal", (_e, id: unknown) => { const f = inbox.received().find((x) => x.id === id); if (f) shell.showItemInFolder(f.path); });
   ipcMain.handle("inbox:open", async (_e, id: unknown) => { const f = inbox.received().find((x) => x.id === id); if (f) await shell.openPath(f.path); });
   ipcMain.handle("inbox:forget", (_e, id: unknown) => { if (typeof id === "string") inbox.forget(id); });

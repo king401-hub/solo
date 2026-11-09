@@ -63,6 +63,7 @@ export class Inbox {
     this.now = d.now ?? Date.now;
     this.max = Math.min(d.maxBytes ?? MAX_FILE_BYTES, MAX_FILE_BYTES);
     try { const j = JSON.parse(readFileSync(d.indexFile, "utf8")); if (Array.isArray(j)) this.list = j.filter((f) => f && typeof f.path === "string").slice(0, KEEP); } catch { /* none yet */ }
+    try { mkdirSync(d.dir, { recursive: true }); } catch { /* created again when the first file arrives */ }
     this.timer = setInterval(() => this.sweep(), 10_000);
     this.timer.unref();
   }
