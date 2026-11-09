@@ -11,6 +11,8 @@ import { generateIdentity } from "@solo/crypto";
 import { DeviceStore } from "../src/main/link/store";
 import { RelayClient } from "../src/main/relay/relayClient";
 import { Inbox } from "../src/main/files/inbox";
+import { Outbox } from "../src/main/files/outbox";
+import { createInterface } from "node:readline";
 
 const url = process.argv[2]!;
 const identity = generateIdentity();
@@ -30,9 +32,23 @@ const inbox = new Inbox({
 client.on("status", (s) => {
   if (s === "online") say({ event: "pairing", ...client.hostPairing(), id: identity.id });
 });
-client.on("paired", (d) => say({ event: "paired", name: d.name, id: d.deviceId }));
+client.on("paired", (d) => { lastPeer = d.deviceId; say({ event: "paired", name: d.name, id: d.deviceId }); });
 client.on("connected", (d) => say({ event: "connected", name: d.name }));
+// Sending: the test writes "send <path>" lines on stdin; progress is reported as events.
+let lastPeer = "";
+const outbox = new Outbox({
+  send: (to, type, payload) => client.send(to, type, payload), deviceName: () => "Test phone",
+  onChange: () => say({ event: "transfers", transfers: outbox.transfers.map((t) => ({ name: t.name, status: t.status, sent: t.sent, size: t.size, error: t.error })) }),
+});
+client.on("disconnected", (id) => outbox.peerLost(id));
+createInterface({ input: process.stdin }).on("line", (l) => {
+  const [cmd, ...rest] = l.split(" ");
+  if (cmd === "send") void outbox.sendFile(lastPeer, rest.join(" ")).then((e) => { if (e) say({ event: "sendError", error: e }); });
+  if (cmd === "cancel" && outbox.transfers[0]) outbox.cancel(outbox.transfers[0].id);
+});
 client.on("message", (from, env) => {
+  lastPeer = from;
+  if (outbox.handle(from, env)) return;
   if (inbox.handle(from, env)) {
     if (env.type === "file.end") say({ event: "received", files: inbox.received().map((f) => ({ name: f.name, size: f.size, path: f.path })) });
     return;

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'discovery.dart';
+import 'file_receiver.dart';
 import 'file_sender.dart';
 
 enum LinkStatus { unpaired, connecting, connected, offline, rejected }
@@ -36,6 +37,8 @@ class LinkState {
     this.relayUrl,
     this.relayStatus = 'off',
     this.transfers = const [],
+    this.receiving = const [],
+    this.received = const [],
   });
   final LinkStatus status;
   final String? lastError;
@@ -53,6 +56,8 @@ class LinkState {
   final String? relayUrl;
   final String relayStatus; // off | connecting | online
   final List<TransferInfo> transfers; // files being sent or recently sent
+  final List<TransferInfo> receiving; // files arriving from a computer right now
+  final List<ReceivedInfo> received; // files that arrived and are stored in the app
 
   bool get paired => desktopName != null || peers.isNotEmpty;
   List<PeerInfo> get onlinePeers => [for (final p in peers) if (p.online) p];
@@ -73,6 +78,8 @@ class LinkState {
         'relayUrl': relayUrl,
         'relayStatus': relayStatus,
         'transfers': transfers.map((t) => t.toJson()).toList(),
+        'receiving': receiving.map((t) => t.toJson()).toList(),
+        'received': received.map((t) => t.toJson()).toList(),
       };
 
   factory LinkState.fromJson(Map<dynamic, dynamic> j) => LinkState(
@@ -91,6 +98,8 @@ class LinkState {
         relayUrl: j['relayUrl'] as String?,
         relayStatus: (j['relayStatus'] ?? 'off') as String,
         transfers: [for (final t in ((j['transfers'] ?? const []) as List)) TransferInfo.fromJson(t as Map)],
+        receiving: [for (final t in ((j['receiving'] ?? const []) as List)) TransferInfo.fromJson(t as Map)],
+        received: [for (final t in ((j['received'] ?? const []) as List)) ReceivedInfo.fromJson(t as Map)],
       );
 }
 
@@ -125,4 +134,7 @@ abstract class LinkApi extends ChangeNotifier {
   Future<String?> sendFile(String peerId, String path, String name);
   Future<void> cancelTransfer(String id);
   Future<void> clearTransfers();
+
+  /// Delete a received file from the phone.
+  Future<void> deleteReceived(String id);
 }

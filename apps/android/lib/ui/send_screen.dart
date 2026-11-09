@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../link/file_receiver.dart';
 import '../link/file_sender.dart';
 import '../link/link_api.dart';
 import '../send/send_controller.dart';
@@ -22,7 +23,7 @@ class SendScreen extends StatelessWidget {
           final online = c.onlineComputers;
           final small = Theme.of(context).textTheme.bodySmall;
           return ListView(padding: const EdgeInsets.all(16), children: [
-            Text('Send to my computer', style: Theme.of(context).textTheme.headlineSmall),
+            Text('Send and receive files', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),
             Text('Pick files here, or use Share in any app and choose Solo. They are sent encrypted, directly to your computer, and saved in its Downloads\\Solo folder. Nothing goes to a Solo server.', style: small),
             const SizedBox(height: 16),
@@ -59,6 +60,7 @@ class SendScreen extends StatelessWidget {
               ]),
               for (final t in transfers) _Row(t: t, link: c.link),
             ],
+            _Received(c: c, receiving: c.link.state.receiving, received: c.link.state.received),
           ]);
         },
       );
@@ -94,5 +96,61 @@ class _Row extends StatelessWidget {
         ]),
       ),
     );
+  }
+}
+
+/// Files that arrived from a computer. They are stored inside Solo; Open hands them to another app, Save to Downloads
+/// copies them where other apps and the Files app can see them.
+class _Received extends StatefulWidget {
+  const _Received({required this.c, required this.receiving, required this.received});
+  final SendController c;
+  final List<TransferInfo> receiving;
+  final List<ReceivedInfo> received;
+  @override
+  State<_Received> createState() => _ReceivedState();
+}
+
+class _ReceivedState extends State<_Received> {
+  String? _note;
+
+  void _say(String? m) {
+    if (m != null && mounted) setState(() => _note = m);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final small = Theme.of(context).textTheme.bodySmall;
+    if (widget.receiving.isEmpty && widget.received.isEmpty && _note == null) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SizedBox(height: 16),
+      Text('From my computer', style: Theme.of(context).textTheme.titleSmall),
+      for (final t in widget.receiving)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(t.name, overflow: TextOverflow.ellipsis),
+              LinearProgressIndicator(value: t.size == 0 ? null : t.progress),
+              Text('Receiving from ${t.peerName}: ${fmtBytes(t.sent)} of ${fmtBytes(t.size)}', style: small),
+            ]),
+          ),
+        ),
+      for (final f in widget.received)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(f.name, overflow: TextOverflow.ellipsis),
+              Text('${fmtBytes(f.size)} · from ${f.fromName} · ${DateTime.fromMillisecondsSinceEpoch(f.at).toLocal().toString().substring(0, 16)}', style: small),
+              Wrap(spacing: 8, children: [
+                TextButton(key: Key('open-${f.id}'), onPressed: () async => _say(await widget.c.openReceived(f.path)), child: const Text('Open')),
+                TextButton(key: Key('save-${f.id}'), onPressed: () async => _say(await widget.c.saveReceived(f.path, f.name)), child: const Text('Save to Downloads')),
+                TextButton(key: Key('delete-${f.id}'), onPressed: () => widget.c.link.deleteReceived(f.id), child: const Text('Delete')),
+              ]),
+            ]),
+          ),
+        ),
+      if (_note != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_note!, key: const Key('receivedNote'), style: small)),
+    ]);
   }
 }

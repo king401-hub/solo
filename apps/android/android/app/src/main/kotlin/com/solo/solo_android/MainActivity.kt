@@ -60,8 +60,55 @@ class MainActivity : FlutterActivity() {
         outgoingDir().listFiles()?.filter { it.lastModified() < old }?.forEach { it.deleteRecursively() }
     }
 
+    /** Received files live in the app's private files folder. Tell the Dart side (which receives them in the background service). */
+    private fun incomingDir() = File(filesDir, "incoming").apply { mkdirs() }
+
+    private fun inIncoming(f: File) = f.canonicalFile.path.startsWith(incomingDir().canonicalFile.path + File.separator)
+
+    private fun mimeOf(name: String): String =
+        android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"
+
+    private val storageRequest = 7103
+
+    /** Copies a received file to the public Downloads/Solo folder. */
+    private fun saveToDownloads(src: File, name: String): Map<String, Any> {
+        if (!src.exists() || !inIncoming(src)) return mapOf("ok" to false, "reason" to "That file is no longer on the phone.")
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeOf(name))
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/Solo")
+            }
+            val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: return mapOf("ok" to false, "reason" to "The phone would not create the file in Downloads.")
+            contentResolver.openOutputStream(uri)?.use { out -> src.inputStream().use { it.copyTo(out) } }
+            return mapOf("ok" to true, "where" to "Downloads/Solo")
+        }
+        // Android 9 and older: needs the storage permission.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            runOnUiThread { ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), storageRequest) }
+            return mapOf("ok" to false, "reason" to "Allow storage access when the phone asks, then tap Save to Downloads again.")
+        }
+        val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Solo").apply { mkdirs() }
+        var dest = File(dir, name)
+        var i = 1
+        while (dest.exists()) { dest = File(dir, "${name.substringBeforeLast('.')} (${i++}).${name.substringAfterLast('.', "")}".trimEnd('.')) }
+        src.copyTo(dest)
+        android.media.MediaScannerConnection.scanFile(this, arrayOf(dest.absolutePath), null, null)
+        return mapOf("ok" to true, "where" to "Downloads/Solo")
+    }
+
+    private fun openFile(f: File): Map<String, Any> {
+        if (!f.exists() || !inIncoming(f)) return mapOf("ok" to false, "reason" to "That file is no longer on the phone.")
+        val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.files", f)
+        val view = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, mimeOf(f.name)); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        return try { runOnUiThread { startActivity(Intent.createChooser(view, f.name)) }; mapOf("ok" to true) }
+        catch (e: Exception) { mapOf("ok" to false, "reason" to "No app on this phone can open that kind of file. Try Save to Downloads.") }
+    }
+
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE).edit().putString("flutter.solo_incoming_dir", incomingDir().absolutePath).apply()
         sweepOutgoing()
         takeSharedIntent(intent)
     }
@@ -136,6 +183,11 @@ class MainActivity : FlutterActivity() {
                     addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"; putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
                 }
                 @Suppress("DEPRECATION") startActivityForResult(i, pickRequest)
+            }
+            "files.open" -> async(result) { openFile(File((call.argument<String>("path")) ?: "")) }
+            "files.save" -> async(result) {
+                val name = (call.argument<String>("name") ?: "file").substringAfterLast('/').substringAfterLast("\\").ifBlank { "file" }
+                saveToDownloads(File(call.argument<String>("path") ?: ""), name)
             }
             "files.takeShared" -> async(result) { synchronized(shared) { val l = shared.toList(); shared.clear(); l } }
             "files.cleanup" -> async(result) {

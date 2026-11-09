@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { LinkSnapshot } from "../main/link/service";
 
 // Narrow, typed surface. Add methods here deliberately; never expose ipcRenderer itself.
@@ -29,6 +29,15 @@ contextBridge.exposeInMainWorld("solo", {
       ipcRenderer.on("voice:modelProgress", h);
       return () => ipcRenderer.removeListener("voice:modelProgress", h);
     },
+  },
+  send: {
+    state: () => ipcRenderer.invoke("send:state"),
+    choose: (deviceId: string): Promise<string[]> => ipcRenderer.invoke("send:choose", deviceId),
+    paths: (deviceId: string, paths: string[]): Promise<string[]> => ipcRenderer.invoke("send:paths", deviceId, paths),
+    cancel: (id: string): Promise<void> => ipcRenderer.invoke("send:cancel", id),
+    clear: (): Promise<void> => ipcRenderer.invoke("send:clear"),
+    /** The real path of a file dropped onto the window (the renderer cannot read it directly). */
+    pathFor: (f: File): string => webUtils.getPathForFile(f),
   },
   inbox: {
     state: () => ipcRenderer.invoke("inbox:state"),

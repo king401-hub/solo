@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../relay/e2e.dart' as e2e;
 import '../relay/relay_client.dart';
 import 'discovery.dart';
+import 'file_receiver.dart';
 import 'file_sender.dart';
 import 'link_api.dart';
 import '../sync/sync_store.dart';
@@ -26,8 +27,12 @@ const appVersion = '0.1.0';
 ///
 /// In the app this runs inside the foreground-service isolate so it survives the UI being closed.
 class LinkClient extends LinkApi {
-  LinkClient({FlutterSecureStorage? storage, this.autoDiscover = false})
+  LinkClient({FlutterSecureStorage? storage, this.autoDiscover = false, this.incomingDir})
       : _storage = storage ?? const FlutterSecureStorage();
+
+  /// Where files from computers are stored. Normally told to us by the native side (the app's private files folder).
+  final String? incomingDir;
+  FileReceiver? _receiver;
   final FlutterSecureStorage _storage;
   final bool autoDiscover;
 
@@ -59,6 +64,8 @@ class LinkClient extends LinkApi {
       relayUrl: r?.url,
       relayStatus: r?.status.name ?? 'off',
       transfers: _files.transfers,
+      receiving: _receiver?.receiving ?? const [],
+      received: _receiver?.received ?? const [],
     );
   }
 
@@ -93,6 +100,24 @@ class LinkClient extends LinkApi {
   Future<void> cancelTransfer(String id) async => _files.cancel(id);
   @override
   Future<void> clearTransfers() async => _files.clearFinished();
+  @override
+  Future<void> deleteReceived(String id) async => _receiver?.delete(id);
+
+  Future<String> _incomingPath() async {
+    if (incomingDir != null) return incomingDir!;
+    try {
+      final p = await SharedPreferences.getInstance();
+      final fromNative = p.getString('solo_incoming_dir');
+      if (fromNative != null && fromNative.isNotEmpty) return fromNative;
+    } catch (_) {}
+    return '${Directory.systemTemp.parent.path}/files/incoming';
+  }
+
+  /// One entry point for every incoming file.* message, from the LAN link or the relay.
+  void _onFileMessage(String from, String type, Map<String, dynamic> payload) {
+    if (_files.handle(from, type, payload)) return; // replies, acks, results for files we are sending
+    _receiver?.handle(from, type, payload);
+  }
 
   // Secrets / identity (not part of LinkState).
   String? _token, _certFp, _desktopId, _deviceId;
@@ -196,6 +221,17 @@ class LinkClient extends LinkApi {
   Future<void> start() async {
     final name = await _storage.read(key: 'deviceName');
     final auto = await _storage.read(key: 'autoPair') == '1';
+    _receiver = FileReceiver(
+      dir: await _incomingPath(),
+      send: _sendTo,
+      onChange: () => _set(_s),
+      peerName: (id) {
+        for (final p in _s.peers) {
+          if (p.id == id) return p.name;
+        }
+        return id == _desktopId ? (_s.desktopName ?? 'your computer') : 'your computer';
+      },
+    );
     final sync = SyncStore(await _id(), initial: SyncStore.parse(await _storage.read(key: 'sync')));
     _sync = sync;
     _relay = RelayClient(
@@ -209,6 +245,7 @@ class LinkClient extends LinkApi {
       onStatus: (_) => _set(_s),
       onDisconnected: (id) {
         _files.peerLost(id);
+        _receiver?.peerLost(id);
         _set(_s);
       },
       onConnected: (peer) {
@@ -220,7 +257,7 @@ class LinkClient extends LinkApi {
       },
       onMessage: (from, env) {
         if ((env['type'] as String).startsWith('file.')) {
-          _files.handle(from, env['type'] as String, Map<String, dynamic>.from(env['payload'] as Map));
+          _onFileMessage(from, env['type'] as String, Map<String, dynamic>.from(env['payload'] as Map));
           return;
         }
         if (env['type'] != 'sync.delta') return;
@@ -431,8 +468,8 @@ class LinkClient extends LinkApi {
                 _applyingFrom = null;
               }
             }
-          case 'file.reply' || 'file.ack' || 'file.result' || 'file.cancel':
-            if (_desktopId != null) _files.handle(_desktopId!, m['type'] as String, pl);
+          case 'file.reply' || 'file.ack' || 'file.result' || 'file.cancel' || 'file.offer' || 'file.chunk' || 'file.end':
+            if (_desktopId != null) _onFileMessage(_desktopId!, m['type'] as String, pl);
           case 'pair.reject':
             final r = pl['reason'] as String;
             if (r == 'revoked' || r == 'unknown_device') {
@@ -455,7 +492,10 @@ class LinkClient extends LinkApi {
   void _onClosed() {
     _hb?.cancel();
     _ws = null;
-    if (_desktopId != null) _files.peerLost(_desktopId!);
+    if (_desktopId != null) {
+      _files.peerLost(_desktopId!);
+      _receiver?.peerLost(_desktopId!);
+    }
     if (_disposed || !_s.paired || _pairing) return;
     _set(_copy(status: LinkStatus.offline));
     _retry?.cancel();
@@ -538,6 +578,8 @@ class LinkClient extends LinkApi {
     _scan?.cancel();
     _ws?.close();
     _relay?.stop();
+    _files.dispose();
+    _receiver?.dispose();
     super.dispose();
   }
 }

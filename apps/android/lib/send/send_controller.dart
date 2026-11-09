@@ -114,4 +114,27 @@ class SendController extends ChangeNotifier {
       // not on a phone
     }
   }
+
+  // ---- files that arrived from a computer (stored inside the app) ----
+
+  /// Opens a received file in whatever app handles its type. Returns an error message or null.
+  Future<String?> openReceived(String path) async {
+    try {
+      final r = await _c.invokeMapMethod<String, dynamic>('files.open', {'path': path});
+      return r?['ok'] == true ? null : (r?['reason'] as String? ?? 'No app on this phone can open that file.');
+    } on MissingPluginException {
+      return 'Not available here.';
+    }
+  }
+
+  /// Copies a received file to the phone's Downloads/Solo folder so other apps can see it. Returns a message to show.
+  Future<String> saveReceived(String path, String name) async {
+    try {
+      final r = await _c.invokeMapMethod<String, dynamic>('files.save', {'path': path, 'name': name});
+      if (r?['ok'] == true) return 'Saved to ${r?['where'] ?? 'Downloads/Solo'}.';
+      return (r?['reason'] as String?) ?? 'Could not save the file.';
+    } on MissingPluginException {
+      return 'Not available here.';
+    }
+  }
 }

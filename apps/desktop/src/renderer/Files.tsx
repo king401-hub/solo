@@ -161,6 +161,58 @@ function AddFolder({ st, refresh, onDone }: { st: FileSyncState; refresh: () => 
   );
 }
 
+function SendToPhone() {
+  const [st, setSt] = useState<Awaited<ReturnType<typeof window.solo.send.state>>>();
+  const [target, setTarget] = useState<string>();
+  const [msg, setMsg] = useState<string>();
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    const load = () => void window.solo.send.state().then(setSt).catch(() => {});
+    load();
+    const t = setInterval(load, 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!st || st.devices.length === 0) return null; // no paired phone: nothing to send to
+  const online = st.devices.filter((d) => d.online);
+  const dest = online.find((d) => d.deviceId === target) ?? (online.length === 1 ? online[0] : undefined);
+  const report = (errs: string[]) => setMsg(errs.length ? errs.join(" ") : undefined);
+  const drop = (e: React.DragEvent) => {
+    e.preventDefault(); setOver(false);
+    if (!dest) return setMsg("Your phone is not connected right now.");
+    const paths = Array.from(e.dataTransfer.files).map((f) => { try { return window.solo.send.pathFor(f); } catch { return ""; } }).filter(Boolean);
+    void window.solo.send.paths(dest.deviceId, paths).then(report);
+  };
+  const pct = (t: { size: number; sent: number }) => (t.size ? Math.round((t.sent / t.size) * 100) : 100);
+  return (
+    <section className="card" aria-label="Send files to your phone" onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop}
+      style={over ? { outline: "2px dashed var(--accent, #7aa2ff)" } : undefined}>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <strong>Send to your phone</strong>
+        <button className="btn" disabled={!dest} onClick={() => dest && void window.solo.send.choose(dest.deviceId).then(report)}>Choose files…</button>
+      </div>
+      {online.length > 1 && (
+        <div style={{ display: "flex", gap: 6, margin: "6px 0" }}>
+          {online.map((d) => <button key={d.deviceId} className="btn" aria-pressed={dest?.deviceId === d.deviceId} onClick={() => setTarget(d.deviceId)}>{d.name}</button>)}
+        </div>
+      )}
+      <p className="sub" style={{ fontSize: 12, margin: "4px 0 6px" }}>
+        {dest ? `Choose files, or drop them here, to send to ${dest.name}${dest.via === "relay" ? " (over the internet)" : ""}. They are encrypted on the way and saved inside the Solo app on the phone.`
+          : online.length === 0 ? "Your phone is not connected right now. Open Solo on it." : "Choose which phone to send to."}
+      </p>
+      {msg && <p role="alert" style={{ color: "var(--danger)", margin: "4px 0" }}>{msg}</p>}
+      {st.transfers.map((t) => (
+        <div className="row" key={t.id}>
+          <span><strong>{t.name}</strong> <span className="sub">{fmtBytes(t.size)} · {
+            t.status === "waiting" ? `waiting for ${t.toName} to accept` : t.status === "sending" ? `${pct(t)}%` : t.status === "finishing" ? "checking it arrived intact"
+              : t.status === "done" ? `sent to ${t.toName}` : t.status === "cancelled" ? "cancelled" : (t.error ?? "failed")}</span></span>
+          {(t.status === "waiting" || t.status === "sending" || t.status === "finishing") && <button className="btn" onClick={() => void window.solo.send.cancel(t.id)}>Cancel</button>}
+        </div>
+      ))}
+      {st.transfers.some((t) => t.status === "done" || t.status === "failed" || t.status === "cancelled") && <button className="btn" onClick={() => void window.solo.send.clear()}>Clear finished</button>}
+    </section>
+  );
+}
+
 function Received() {
   const [st, setSt] = useState<Awaited<ReturnType<typeof window.solo.inbox.state>>>();
   useEffect(() => {
@@ -203,6 +255,8 @@ export function Files() {
     <>
       <h1>Files</h1>
       <p className="sub">Keeps real folders identical on your devices, directly between them. Files stay in their normal places and open in any program. Nothing is stored on a Solo server.</p>
+
+      <SendToPhone />
 
       <Received />
 

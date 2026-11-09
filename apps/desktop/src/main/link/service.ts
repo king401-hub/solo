@@ -12,6 +12,7 @@ import { createSync } from "../sync/sync";
 import { Hub } from "./hub";
 import { createFiles } from "../files/service";
 import { Inbox } from "../files/inbox";
+import { Outbox } from "../files/outbox";
 import { RelayClient, validRelayUrl } from "../relay/relayClient";
 import type { SyncDelta } from "@solo/shared";
 
@@ -88,7 +89,10 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
     dir: join(app.getPath("downloads"), "Solo"), indexFile: join(dir, "received-files.json"),
     send: (to, type, payload) => hub.send(to, type, payload), deviceName: nameOf, onChange: () => onChange(),
   });
+  const outbox = new Outbox({ send: (to, type, payload) => hub.send(to, type, payload), deviceName: nameOf, onChange: () => onChange() });
+  hub.on("disconnected", (id) => outbox.peerLost(id));
   hub.on("message", (from, env) => {
+    if (outbox.handle(from, env)) return; // replies, acks and results for files we are sending
     const before = inbox.received().length;
     if (!inbox.handle(from, env)) return;
     if (env.type === "file.end" && inbox.received().length > before && Notification.isSupported()) {
@@ -119,7 +123,7 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
   });
 
   return {
-    snapshot, server, sync: sync.store, hub, files, inbox,
+    snapshot, server, sync: sync.store, hub, files, inbox, outbox,
     startPairing: () => { pairing = server.startPairing(); onChange(); return snapshot(); },
     cancelPairing: () => { server.cancelPairing(); pairing = undefined; onChange(); },
     approve: (id: string) => server.approve(id),
@@ -144,6 +148,6 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
     relayJoin: (code: string) => relay.joinPairing(code),
     revoke: (id: string) => { store.revoke(id); server.disconnect(id); onChange(); },
     remove: (id: string) => { server.disconnect(id); store.remove(id); relay.refreshWatch(); onChange(); },
-    stop: async () => { inbox.stop(); await files.stop(); relay.stop(); sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
+    stop: async () => { outbox.stop(); inbox.stop(); await files.stop(); relay.stop(); sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
   };
 }

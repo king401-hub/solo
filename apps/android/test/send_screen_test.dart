@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:solo_android/link/file_receiver.dart';
 import 'package:solo_android/link/file_sender.dart';
 import 'package:solo_android/link/link_api.dart';
 import 'package:solo_android/send/send_controller.dart';
@@ -18,6 +19,7 @@ class FakeLink extends LinkApi {
   final sent = <(String, String, String)>[];
   String? refuse;
   final cancelled = <String>[];
+  final deleted = <String>[];
   var cleared = 0;
 
   @override
@@ -30,6 +32,8 @@ class FakeLink extends LinkApi {
   Future<void> cancelTransfer(String id) async => cancelled.add(id);
   @override
   Future<void> clearTransfers() async => cleared++;
+  @override
+  Future<void> deleteReceived(String id) async => deleted.add(id);
   @override
   dynamic noSuchMethod(Invocation i) => null;
 }
@@ -49,6 +53,8 @@ void main() {
       calls.add(c.method);
       if (c.method == 'files.pick') return picked;
       if (c.method == 'files.takeShared') return picked;
+      if (c.method == 'files.open') return {'ok': false, 'reason': 'No app on this phone can open that file.'};
+      if (c.method == 'files.save') return {'ok': true, 'where': 'Downloads/Solo'};
       return {'ok': true};
     });
   });
@@ -144,10 +150,32 @@ void main() {
     expect(link.cleared, 1);
   });
 
+  testWidgets('files from the computer: progress, then Open / Save / Delete', (t) async {
+    link.state = LinkState(peers: const [pc], receiving: const [
+      TransferInfo(id: 'r1', name: 'incoming.zip', size: 4000000, peerId: 'pc1', peerName: 'Office PC', sent: 1000000, status: TransferStatus.sending),
+    ], received: [
+      ReceivedInfo(id: 'f1', name: 'invoice.pdf', size: 52000, at: DateTime(2026, 11, 9, 10, 30).millisecondsSinceEpoch, fromName: 'Office PC', path: '/files/incoming/invoice.pdf'),
+    ]);
+    await pump(t);
+    expect(find.textContaining('Receiving from Office PC: 1.0 MB of 4.0 MB'), findsOneWidget);
+    expect(find.text('invoice.pdf'), findsOneWidget);
+    await t.ensureVisible(find.byKey(const Key('open-f1')));
+    await t.tap(find.byKey(const Key('open-f1')));
+    await t.pumpAndSettle();
+    expect(find.text('No app on this phone can open that file.'), findsOneWidget);
+    await t.tap(find.byKey(const Key('save-f1')));
+    await t.pumpAndSettle();
+    expect(find.text('Saved to Downloads/Solo.'), findsOneWidget);
+    await t.tap(find.byKey(const Key('delete-f1')));
+    expect(link.deleted, ['f1']);
+  });
+
   test('transfer info survives the trip between the service and the screen', () {
     const info = TransferInfo(id: 'x', name: 'n', size: 9, peerId: 'p', peerName: 'PC', sent: 4, status: TransferStatus.sending);
     final back = LinkState.fromJson(const LinkState(transfers: [info]).toJson()).transfers.single;
     expect((back.id, back.name, back.size, back.sent, back.status, back.progress), ('x', 'n', 9, 4, TransferStatus.sending, 4 / 9));
+    final r = LinkState.fromJson(const LinkState(received: [ReceivedInfo(id: 'i', name: 'a.txt', size: 3, at: 5, fromName: 'PC', path: '/p/a.txt')]).toJson()).received.single;
+    expect((r.id, r.name, r.size, r.at, r.fromName, r.path), ('i', 'a.txt', 3, 5, 'PC', '/p/a.txt'));
   });
 }
 

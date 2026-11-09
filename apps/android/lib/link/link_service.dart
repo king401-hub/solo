@@ -75,6 +75,8 @@ class _LinkTaskHandler extends TaskHandler {
         await link.cancelTransfer(data['tid'] as String);
       case 'clearTransfers':
         await link.clearTransfers();
+      case 'deleteReceived':
+        await link.deleteReceived(data['tid'] as String);
       case 'setting':
         await link.setAssistantSetting(data['key'] as String, data['value'] as Object);
     }
@@ -176,6 +178,8 @@ class RemoteLink extends LinkApi {
   Future<void> cancelTransfer(String id) async => FlutterForegroundTask.sendDataToTask({'cmd': 'cancelTransfer', 'tid': id});
   @override
   Future<void> clearTransfers() async => FlutterForegroundTask.sendDataToTask({'cmd': 'clearTransfers'});
+  @override
+  Future<void> deleteReceived(String id) async => FlutterForegroundTask.sendDataToTask({'cmd': 'deleteReceived', 'tid': id});
 
   @override
   Future<void> forget() async => FlutterForegroundTask.sendDataToTask({'cmd': 'forget'});

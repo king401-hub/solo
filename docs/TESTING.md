@@ -114,3 +114,11 @@ Automated, opt-in: `SOLO_VOICES_DIR=... SOLO_WAVLM_MODEL=... ./gradlew :app:test
 - [ ] Leave Wi-Fi (mobile data only, relay set up) and send a file: it should say "over the internet" and still arrive.
 - [ ] Send a video of a few hundred MB and note the speed.
 
+## Sending files computer -> phone (needs the phone)
+- [ ] PC > Files > Send to your phone > Choose files: pick a photo and a PDF. Progress shows on the PC and on the phone (Send tab > From my computer); both end up listed on the phone.
+- [ ] Drag a file from Explorer onto the "Send to your phone" card: it is sent.
+- [ ] On the phone tap Open on the PDF: a viewer opens it. Tap Save to Downloads: the file appears in the Files app under Downloads/Solo (Android 9: allow the storage permission first).
+- [ ] Close the Solo screen on the phone (leave the app running in the background) and send again from the PC: the file still arrives; open Solo to see it.
+- [ ] Cancel a large transfer from the PC: the phone shows nothing half-received. Turn the phone's Wi-Fi off mid-transfer: the PC says the phone went offline.
+- [ ] Send a few hundred MB over Wi-Fi and note the speed; repeat with the phone on mobile data (relay).
+

@@ -28,6 +28,14 @@ declare global {
         transcribe(pcm: Float32Array): Promise<string>;
         onModelProgress(cb: (pct: number) => void): () => void;
       };
+      send: {
+        state(): Promise<{ devices: { deviceId: string; name: string; online: boolean; via?: "lan" | "relay" }[]; transfers: { id: string; name: string; size: number; sent: number; status: "waiting" | "sending" | "finishing" | "done" | "failed" | "cancelled"; error?: string; toName: string }[] }>;
+        choose(deviceId: string): Promise<string[]>;
+        paths(deviceId: string, paths: string[]): Promise<string[]>;
+        cancel(id: string): Promise<void>;
+        clear(): Promise<void>;
+        pathFor(f: File): string;
+      };
       inbox: {
         state(): Promise<{ folder: string; received: { id: string; name: string; fromName: string; size: number; at: number }[]; receiving: { transferId: string; name: string; fromName: string; size: number; received: number }[] }>;
         openFolder(): Promise<void>;

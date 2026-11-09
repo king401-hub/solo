@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, session, shell } from "electron";
 import { mkdirSync } from "node:fs";
-import { isAbsolute, join, parse, resolve } from "node:path";
+import { basename, isAbsolute, join, parse, resolve } from "node:path";
 import { startLink } from "./link/service";
 import { ASR_MODELS, createStt, type AsrPreset, type Stt } from "./voice/stt";
 import { createSpeaker } from "./voice/speaker";
@@ -171,6 +171,32 @@ app.whenReady().then(async () => {
   ipcMain.handle("inbox:reveal", (_e, id: unknown) => { const f = inbox.received().find((x) => x.id === id); if (f) shell.showItemInFolder(f.path); });
   ipcMain.handle("inbox:open", async (_e, id: unknown) => { const f = inbox.received().find((x) => x.id === id); if (f) await shell.openPath(f.path); });
   ipcMain.handle("inbox:forget", (_e, id: unknown) => { if (typeof id === "string") inbox.forget(id); });
+  // ---- Sending files to a paired phone ----
+  const outbox = link.outbox;
+  const pairedPhone = (id: unknown) => { const d = link.snapshot().devices.find((x) => x.deviceId === id); return d && !d.revoked && d.kind === "android" ? d : undefined; };
+  ipcMain.handle("send:state", () => ({
+    devices: link.snapshot().devices.filter((d) => d.kind === "android" && !d.revoked).map((d) => ({ deviceId: d.deviceId, name: d.name, online: d.online, via: d.via })),
+    transfers: outbox.transfers,
+  }));
+  const sendPaths = async (to: string, paths: string[]) => {
+    const errors: string[] = [];
+    for (const p of paths.slice(0, 50)) { const e = await outbox.sendFile(to, p); if (e) errors.push(`${basename(p)}: ${e}`); }
+    return errors;
+  };
+  ipcMain.handle("send:choose", async (_e, id: unknown) => {
+    const d = pairedPhone(id);
+    if (!d) return ["Choose a paired phone first."];
+    const r = await dialog.showOpenDialog(win!, { title: `Send to ${d.name}`, properties: ["openFile", "multiSelections"] });
+    return r.canceled ? [] : sendPaths(d.deviceId, r.filePaths);
+  });
+  ipcMain.handle("send:paths", async (_e, id: unknown, paths: unknown) => {
+    const d = pairedPhone(id);
+    if (!d) return ["Choose a paired phone first."];
+    const list = Array.isArray(paths) ? paths.filter((p): p is string => typeof p === "string" && isAbsolute(p)) : [];
+    return list.length ? sendPaths(d.deviceId, list) : ["Nothing to send. Drop files, not folders or text."];
+  });
+  ipcMain.handle("send:cancel", (_e, id: unknown) => { if (typeof id === "string") outbox.cancel(id); });
+  ipcMain.handle("send:clear", () => outbox.clearFinished());
   ipcMain.handle("link:revoke", (_e, id: unknown) => { if (typeof id === "string") link.revoke(id); });
   ipcMain.handle("link:remove", (_e, id: unknown) => { if (typeof id === "string") link.remove(id); });
   app.on("before-quit", () => { void link.stop(); });

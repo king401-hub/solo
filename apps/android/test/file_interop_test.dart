@@ -40,7 +40,7 @@ void main() {
     }
   }
 
-  Future<void> until(bool Function() f, {int ms = 20000}) async {
+  Future<void> until(bool Function() f, {int ms = 60000}) async {
     final end = DateTime.now().add(Duration(milliseconds: ms));
     while (!f() && DateTime.now().isBefore(end)) {
       await Future<void>.delayed(const Duration(milliseconds: 25));

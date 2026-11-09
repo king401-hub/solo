@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
+import 'file_util.dart';
 
 const fileChunkBytes = 48 * 1024;
 const fileWindow = 8;
@@ -32,32 +32,10 @@ class _Out {
   _Out(this.info, this.file);
   TransferInfo info;
   final RandomAccessFile file;
-  final digest = _Digest();
+  final digest = ChunkedSha256();
   int nextSeq = 0, acked = 0, offset = 0;
   bool eof = false, endSent = false, pumping = false;
   DateTime lastProgress = DateTime.now();
-}
-
-class _Digest {
-  final _sink = _Capture();
-  late final ByteConversionSink conv = sha256.startChunkedConversion(_sink);
-  String? _hex;
-  void add(List<int> b) => conv.add(b);
-  String finish() {
-    if (_hex == null) {
-      conv.close();
-      _hex = _sink.value.toString();
-    }
-    return _hex!;
-  }
-}
-
-class _Capture implements Sink<Digest> {
-  Digest? value;
-  @override
-  void add(Digest data) => value = data;
-  @override
-  void close() {}
 }
 
 /// Sends files to a paired device over the encrypted link (LAN or relay), following the file.* protocol in
@@ -163,7 +141,7 @@ class FileSender {
   bool handle(String from, String type, Map<String, dynamic> p) {
     if (!type.startsWith('file.')) return false;
     final o = _out[p['transferId']];
-    if (o == null || o.info.peerId != from) return true;
+    if (o == null || o.info.peerId != from) return false; // not ours: the receiving side may want it
     o.lastProgress = DateTime.now();
     switch (type) {
       case 'file.reply':
