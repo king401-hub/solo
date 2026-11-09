@@ -161,6 +161,39 @@ function AddFolder({ st, refresh, onDone }: { st: FileSyncState; refresh: () => 
   );
 }
 
+function Received() {
+  const [st, setSt] = useState<Awaited<ReturnType<typeof window.solo.inbox.state>>>();
+  useEffect(() => {
+    const load = () => void window.solo.inbox.state().then(setSt).catch(() => {});
+    load();
+    const t = setInterval(load, 1500);
+    return () => clearInterval(t);
+  }, []);
+  if (!st) return null;
+  return (
+    <section className="card" aria-label="Received files">
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <strong>Received from your phone</strong>
+        <button className="btn" onClick={() => void window.solo.inbox.openFolder()}>Open folder</button>
+      </div>
+      <p className="sub" style={{ fontSize: 12, margin: "4px 0 6px" }}>Files you send from the Solo app on your phone are saved in {st.folder}. Solo never opens or runs them, and never replaces a file that is already there.</p>
+      {st.receiving.map((r) => (
+        <div className="row" key={r.transferId}><span>Receiving {r.name} from {r.fromName}</span><span className="sub">{r.size ? Math.round((r.received / r.size) * 100) : 0}% of {fmtBytes(r.size)}</span></div>
+      ))}
+      {st.receiving.length === 0 && st.received.length === 0 && <p className="sub" style={{ margin: 0 }}>Nothing yet. On your phone, open Solo, go to Send, and pick a file.</p>}
+      {st.received.slice(0, 8).map((f) => (
+        <div className="row" key={f.id}>
+          <span><strong>{f.name}</strong> <span className="sub">{fmtBytes(f.size)} · from {f.fromName} · {new Date(f.at).toLocaleString()}</span></span>
+          <span style={{ display: "flex", gap: 6 }}>
+            <button className="btn" onClick={() => void window.solo.inbox.open(f.id)}>Open</button>
+            <button className="btn" onClick={() => void window.solo.inbox.reveal(f.id)}>Show in folder</button>
+          </span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function Files() {
   const { st, refresh } = useFiles();
   const { err, run } = useAction(refresh);
@@ -170,6 +203,8 @@ export function Files() {
     <>
       <h1>Files</h1>
       <p className="sub">Keeps real folders identical on your devices, directly between them. Files stay in their normal places and open in any program. Nothing is stored on a Solo server.</p>
+
+      <Received />
 
       <section className="card" aria-label="File sync">
         <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: st.available ? "pointer" : "default" }}>

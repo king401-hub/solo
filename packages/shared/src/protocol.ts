@@ -149,7 +149,62 @@ export const FilesDevice = z.object({
   payload: z.object({ syncthingId: z.string().regex(SYNCTHING_ID), name: z.string().min(1).max(80) }),
 });
 
+/**
+ * Sending a file from one Solo device to another over the encrypted link (LAN or relay). Flow:
+ *   sender: file.offer {transferId, name, size}  ->  receiver: file.reply {ok}
+ *   sender: file.chunk {seq, data} ... (a window of FILE_WINDOW chunks in flight)  <-  receiver: file.ack {seq}
+ *   sender: file.end {sha256}  ->  receiver verifies size and hash, then file.result {ok}
+ * Either side may send file.cancel. Chunks must arrive in order; the receiver cancels on a gap.
+ */
+export const FILE_CHUNK_BYTES = 48 * 1024; // raw bytes per chunk (about 64 KB as base64, well under the relay's 256 KB frame limit)
+export const FILE_WINDOW = 8;
+export const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GiB per file
+const transferId = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/);
+
+export const FileOffer = z.object({
+  ...base,
+  type: z.literal("file.offer"),
+  payload: z.object({ transferId, name: z.string().min(1).max(300), size: z.number().int().min(0).max(MAX_FILE_BYTES) }),
+});
+export const FileReply = z.object({
+  ...base,
+  type: z.literal("file.reply"),
+  payload: z.object({ transferId, ok: z.boolean(), reason: z.string().max(200).optional() }),
+});
+export const FileChunk = z.object({
+  ...base,
+  type: z.literal("file.chunk"),
+  payload: z.object({ transferId, seq: z.number().int().min(0), data: z.string().max(FILE_CHUNK_BYTES * 2) }),
+});
+export const FileAck = z.object({
+  ...base,
+  type: z.literal("file.ack"),
+  payload: z.object({ transferId, seq: z.number().int().min(0) }),
+});
+export const FileEnd = z.object({
+  ...base,
+  type: z.literal("file.end"),
+  payload: z.object({ transferId, sha256: z.string().regex(/^[0-9a-f]{64}$/) }),
+});
+export const FileResult = z.object({
+  ...base,
+  type: z.literal("file.result"),
+  payload: z.object({ transferId, ok: z.boolean(), reason: z.string().max(200).optional() }),
+});
+export const FileCancel = z.object({
+  ...base,
+  type: z.literal("file.cancel"),
+  payload: z.object({ transferId, reason: z.string().max(200).optional() }),
+});
+
 export const Envelope = z.discriminatedUnion("type", [
+  FileOffer,
+  FileReply,
+  FileChunk,
+  FileAck,
+  FileEnd,
+  FileResult,
+  FileCancel,
   AuthChallenge,
   PairRequest,
   PairAsk,

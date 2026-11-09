@@ -163,6 +163,13 @@ app.whenReady().then(async () => {
   ipcMain.handle("files:restore", (_e, folderId: unknown, versionRel: unknown) => files.restore(sid(folderId), String(versionRel)));
   ipcMain.handle("files:open", async (_e, folderId: unknown) => { await shell.openPath(await files.folderRoot(sid(folderId))); });
   ipcMain.handle("files:reveal", async (_e, folderId: unknown, rel: unknown) => { shell.showItemInFolder(await files.absPath(sid(folderId), String(rel))); });
+  // ---- Files received from other devices ----
+  const inbox = link.inbox;
+  ipcMain.handle("inbox:state", () => ({ folder: inbox.folder, received: inbox.received(), receiving: inbox.receiving() }));
+  ipcMain.handle("inbox:openFolder", async () => { await shell.openPath(inbox.folder); });
+  ipcMain.handle("inbox:reveal", (_e, id: unknown) => { const f = inbox.received().find((x) => x.id === id); if (f) shell.showItemInFolder(f.path); });
+  ipcMain.handle("inbox:open", async (_e, id: unknown) => { const f = inbox.received().find((x) => x.id === id); if (f) await shell.openPath(f.path); });
+  ipcMain.handle("inbox:forget", (_e, id: unknown) => { if (typeof id === "string") inbox.forget(id); });
   ipcMain.handle("link:revoke", (_e, id: unknown) => { if (typeof id === "string") link.revoke(id); });
   ipcMain.handle("link:remove", (_e, id: unknown) => { if (typeof id === "string") link.remove(id); });
   app.on("before-quit", () => { void link.stop(); });

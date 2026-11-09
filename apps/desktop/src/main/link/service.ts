@@ -1,4 +1,4 @@
-import { app, shell } from "electron";
+import { app, Notification, shell } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { hostname, networkInterfaces } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,7 @@ import { generateIdentity, identityFromSeed, selfTest, type Identity } from "@so
 import { createSync } from "../sync/sync";
 import { Hub } from "./hub";
 import { createFiles } from "../files/service";
+import { Inbox } from "../files/inbox";
 import { RelayClient, validRelayUrl } from "../relay/relayClient";
 import type { SyncDelta } from "@solo/shared";
 
@@ -81,6 +82,21 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
   });
   void files.start();
 
+  // Files sent from the phone land in Downloads\Solo. Nothing is opened or run, and nothing replaces an existing file.
+  const nameOf = (id: string) => { const d = store.list().find((x) => x.device.deviceId === id); return d ? (d.alias ?? d.device.name) : "A device"; };
+  const inbox = new Inbox({
+    dir: join(app.getPath("downloads"), "Solo"), indexFile: join(dir, "received-files.json"),
+    send: (to, type, payload) => hub.send(to, type, payload), deviceName: nameOf, onChange: () => onChange(),
+  });
+  hub.on("message", (from, env) => {
+    const before = inbox.received().length;
+    if (!inbox.handle(from, env)) return;
+    if (env.type === "file.end" && inbox.received().length > before && Notification.isSupported()) {
+      const f = inbox.received()[0];
+      if (f) new Notification({ title: "Solo received a file", body: `${f.name} from ${f.fromName}` }).show();
+    }
+  });
+
   const bonjour = new Bonjour();
   bonjour.publish({ name: `Solo ${self.name}`, type: "solo", port, txt: { id: self.deviceId, fp: cert.sha256 } });
 
@@ -103,7 +119,7 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
   });
 
   return {
-    snapshot, server, sync: sync.store, hub, files,
+    snapshot, server, sync: sync.store, hub, files, inbox,
     startPairing: () => { pairing = server.startPairing(); onChange(); return snapshot(); },
     cancelPairing: () => { server.cancelPairing(); pairing = undefined; onChange(); },
     approve: (id: string) => server.approve(id),
@@ -128,6 +144,6 @@ export async function startLink(onChange: () => void, onSync: (d: SyncDelta, loc
     relayJoin: (code: string) => relay.joinPairing(code),
     revoke: (id: string) => { store.revoke(id); server.disconnect(id); onChange(); },
     remove: (id: string) => { server.disconnect(id); store.remove(id); relay.refreshWatch(); onChange(); },
-    stop: async () => { await files.stop(); relay.stop(); sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
+    stop: async () => { inbox.stop(); await files.stop(); relay.stop(); sync.flush(); bonjour.unpublishAll(() => bonjour.destroy()); await server.close(); },
   };
 }

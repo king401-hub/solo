@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'discovery.dart';
+import 'file_sender.dart';
 
 enum LinkStatus { unpaired, connecting, connected, offline, rejected }
 
@@ -34,6 +35,7 @@ class LinkState {
     this.peers = const [],
     this.relayUrl,
     this.relayStatus = 'off',
+    this.transfers = const [],
   });
   final LinkStatus status;
   final String? lastError;
@@ -50,6 +52,7 @@ class LinkState {
   final List<PeerInfo> peers; // every paired device (laptops), with live reachability
   final String? relayUrl;
   final String relayStatus; // off | connecting | online
+  final List<TransferInfo> transfers; // files being sent or recently sent
 
   bool get paired => desktopName != null || peers.isNotEmpty;
   List<PeerInfo> get onlinePeers => [for (final p in peers) if (p.online) p];
@@ -69,6 +72,7 @@ class LinkState {
         'peers': peers.map((p) => p.toJson()).toList(),
         'relayUrl': relayUrl,
         'relayStatus': relayStatus,
+        'transfers': transfers.map((t) => t.toJson()).toList(),
       };
 
   factory LinkState.fromJson(Map<dynamic, dynamic> j) => LinkState(
@@ -86,6 +90,7 @@ class LinkState {
         peers: [for (final p in ((j['peers'] ?? const []) as List)) PeerInfo.fromJson(p as Map)],
         relayUrl: j['relayUrl'] as String?,
         relayStatus: (j['relayStatus'] ?? 'off') as String,
+        transfers: [for (final t in ((j['transfers'] ?? const []) as List)) TransferInfo.fromJson(t as Map)],
       );
 }
 
@@ -115,4 +120,9 @@ abstract class LinkApi extends ChangeNotifier {
 
   /// Forget a paired device.
   Future<void> removePeer(String id);
+
+  /// Send a file (already on this phone's storage) to a paired device. Returns an error message or null.
+  Future<String?> sendFile(String peerId, String path, String name);
+  Future<void> cancelTransfer(String id);
+  Future<void> clearTransfers();
 }

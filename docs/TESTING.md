@@ -106,3 +106,11 @@ Automated, opt-in (need models): `SOLO_VOICES_DIR=... npx vitest run voiceId.int
 - [ ] Add a correction ("sorry low" -> "Solo") and check it is applied.
 Automated, opt-in: `SOLO_VOICES_DIR=... SOLO_WAVLM_MODEL=... ./gradlew :app:testDebugUnitTest --tests "*SpeakerEmbedderRealTest"` (in apps/android/android).
 
+## Sending files phone -> computer (needs the phone)
+- [ ] Phone > Send > Choose files: pick a photo and a PDF. Both show progress, then "Sent to <PC>". They appear in Downloads\Solo and under Files > Received; open them and check they are intact.
+- [ ] In the Gallery or Files app choose Share > Solo. The Send tab opens and the file goes to the PC.
+- [ ] Send the same file twice: the second is saved as "name (1)", the first is untouched.
+- [ ] Turn the PC's Solo off and send: the phone says the computer is not reachable. Turn Solo off in the middle of a big file: the transfer fails clearly and no half file stays in Downloads\Solo.
+- [ ] Leave Wi-Fi (mobile data only, relay set up) and send a file: it should say "over the internet" and still arrive.
+- [ ] Send a video of a few hundred MB and note the speed.
+

@@ -30,6 +30,13 @@ contextBridge.exposeInMainWorld("solo", {
       return () => ipcRenderer.removeListener("voice:modelProgress", h);
     },
   },
+  inbox: {
+    state: () => ipcRenderer.invoke("inbox:state"),
+    openFolder: (): Promise<void> => ipcRenderer.invoke("inbox:openFolder"),
+    reveal: (id: string): Promise<void> => ipcRenderer.invoke("inbox:reveal", id),
+    open: (id: string): Promise<void> => ipcRenderer.invoke("inbox:open", id),
+    forget: (id: string): Promise<void> => ipcRenderer.invoke("inbox:forget", id),
+  },
   files: {
     state: () => ipcRenderer.invoke("files:state"),
     setEnabled: (on: boolean): Promise<void> => ipcRenderer.invoke("files:setEnabled", on),

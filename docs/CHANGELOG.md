@@ -42,3 +42,6 @@
 ## 0.6.0 - Unreleased
 - Voice: owner recognition (voice print), owner-only mode, greetings without a wake word, owner-only interruption, Test my voice, Nigerian English/Pidgin helpers, corrections, selectable speech model; Solo no longer listens to itself while speaking. See docs/VOICE.md.
 - Phone parity: owner voice recognition, only-my-voice, greetings without a wake word, owner-only interruption, Test my voice, corrections and Nigerian English helpers on Android (Kotlin, ONNX Runtime, Keystore-encrypted voice print). Kotlin results match the desktop on the same audio. See docs/VOICE.md section 6.
+
+## 0.7.0 - Unreleased
+- Send files from the phone to the computer: Send tab and Android Share menu on the phone; `file.offer/reply/chunk/ack/end/result/cancel` protocol (48 KB chunks, window of 8, SHA-256 verified, 2 GB limit) over the LAN link or the relay; desktop Inbox saves to DownloadsSolo (safe names, never overwrites, never opens), listed under Files > Received. See docs/TRANSFER.md.

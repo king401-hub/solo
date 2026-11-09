@@ -1,9 +1,15 @@
 package com.solo.solo_android
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
+import java.io.File
+import java.util.UUID
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -15,6 +21,68 @@ class MainActivity : FlutterActivity() {
     private val micRequest = 7101
     private var pending: MethodChannel.Result? = null
     private val worker = Executors.newSingleThreadExecutor() // model loading, embedding and recording never run on the UI thread
+    private val pickRequest = 7102
+    private var pickResult: MethodChannel.Result? = null
+    private val shared = java.util.Collections.synchronizedList(mutableListOf<Map<String, Any>>()) // files other apps shared to Solo, staged for sending
+
+    /** Files are copied out of the content:// Uri into the app cache so the sending isolate can read them as plain files. */
+    private fun outgoingDir() = File(cacheDir, "outgoing").apply { mkdirs() }
+
+    private fun stage(uri: Uri): Map<String, Any>? = try {
+        var name = "file"
+        var size = -1L
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                c.getString(0)?.let { name = it }
+                if (!c.isNull(1)) size = c.getLong(1)
+            }
+        }
+        name = name.substringAfterLast('/').substringAfterLast("\\").ifBlank { "file" }
+        val dir = File(outgoingDir(), UUID.randomUUID().toString()).apply { mkdirs() }
+        val out = File(dir, name)
+        contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } } ?: throw IllegalStateException("cannot open")
+        mapOf("path" to out.absolutePath, "name" to name, "size" to out.length())
+    } catch (e: Exception) { null }
+
+    private fun takeSharedIntent(i: Intent?) {
+        if (i == null) return
+        val uris = when (i.action) {
+            Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(i, Intent.EXTRA_STREAM, Uri::class.java))
+            Intent.ACTION_SEND_MULTIPLE -> IntentCompat.getParcelableArrayListExtra(i, Intent.EXTRA_STREAM, Uri::class.java) ?: emptyList()
+            else -> return
+        }
+        i.action = null // handle once
+        if (uris.isNotEmpty()) worker.execute { uris.forEach { u -> stage(u)?.let { shared.add(it) } } }
+    }
+
+    private fun sweepOutgoing() = worker.execute {
+        val old = System.currentTimeMillis() - 24 * 3600_000L
+        outgoingDir().listFiles()?.filter { it.lastModified() < old }?.forEach { it.deleteRecursively() }
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        sweepOutgoing()
+        takeSharedIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeSharedIntent(intent)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != pickRequest) return super.onActivityResult(requestCode, resultCode, data)
+        val r = pickResult ?: return
+        pickResult = null
+        if (resultCode != RESULT_OK || data == null) { r.success(emptyList<Any>()); return }
+        val uris = mutableListOf<Uri>()
+        data.clipData?.let { c -> for (i in 0 until c.itemCount) uris.add(c.getItemAt(i).uri) } ?: data.data?.let { uris.add(it) }
+        worker.execute {
+            val out = uris.mapNotNull { stage(it) }
+            runOnUiThread { r.success(out) }
+        }
+    }
 
     private fun micGranted() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -59,6 +127,26 @@ class MainActivity : FlutterActivity() {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), micRequest)
             }
             "stop" -> { WakeService.stop(this); result.success("stopped") }
+
+            // ---- sending files to the computer ----
+            "files.pick" -> {
+                if (pickResult != null) { result.success(emptyList<Any>()); return }
+                pickResult = result
+                val i = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"; putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+                @Suppress("DEPRECATION") startActivityForResult(i, pickRequest)
+            }
+            "files.takeShared" -> async(result) { synchronized(shared) { val l = shared.toList(); shared.clear(); l } }
+            "files.cleanup" -> async(result) {
+                // only ever delete inside our own staging folder
+                val root = outgoingDir().canonicalFile
+                (call.arguments as? List<*>)?.forEach { p ->
+                    val f = File(p.toString()).canonicalFile
+                    if (f.path.startsWith(root.path + File.separator)) { f.parentFile?.takeIf { it != root }?.deleteRecursively() }
+                }
+                mapOf("ok" to true)
+            }
 
             // ---- owner's voice ----
             "voice.status" -> async(result) {

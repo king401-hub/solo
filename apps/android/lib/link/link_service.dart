@@ -69,6 +69,12 @@ class _LinkTaskHandler extends TaskHandler {
         await reply(await link.pairRemote(data['code'] as String));
       case 'removePeer':
         await link.removePeer(data['id'] as String);
+      case 'sendFile':
+        await reply(await link.sendFile(data['peerId'] as String, data['path'] as String, data['name'] as String));
+      case 'cancelTransfer':
+        await link.cancelTransfer(data['tid'] as String);
+      case 'clearTransfers':
+        await link.clearTransfers();
       case 'setting':
         await link.setAssistantSetting(data['key'] as String, data['value'] as Object);
     }
@@ -163,6 +169,13 @@ class RemoteLink extends LinkApi {
   Future<String?> pairRemote(String code) => _call({'cmd': 'remotePair', 'code': code});
   @override
   Future<void> removePeer(String id) async => FlutterForegroundTask.sendDataToTask({'cmd': 'removePeer', 'id': id});
+
+  @override
+  Future<String?> sendFile(String peerId, String path, String name) => _call({'cmd': 'sendFile', 'peerId': peerId, 'path': path, 'name': name});
+  @override
+  Future<void> cancelTransfer(String id) async => FlutterForegroundTask.sendDataToTask({'cmd': 'cancelTransfer', 'tid': id});
+  @override
+  Future<void> clearTransfers() async => FlutterForegroundTask.sendDataToTask({'cmd': 'clearTransfers'});
 
   @override
   Future<void> forget() async => FlutterForegroundTask.sendDataToTask({'cmd': 'forget'});

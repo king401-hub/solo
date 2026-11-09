@@ -28,6 +28,13 @@ declare global {
         transcribe(pcm: Float32Array): Promise<string>;
         onModelProgress(cb: (pct: number) => void): () => void;
       };
+      inbox: {
+        state(): Promise<{ folder: string; received: { id: string; name: string; fromName: string; size: number; at: number }[]; receiving: { transferId: string; name: string; fromName: string; size: number; received: number }[] }>;
+        openFolder(): Promise<void>;
+        reveal(id: string): Promise<void>;
+        open(id: string): Promise<void>;
+        forget(id: string): Promise<void>;
+      };
       files: {
         state(): Promise<FileSyncState>;
         setEnabled(on: boolean): Promise<void>;

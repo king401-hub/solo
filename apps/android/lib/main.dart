@@ -4,7 +4,9 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'link/link_api.dart';
 import 'link/link_service.dart';
 import 'ui/orb.dart';
+import 'send/send_controller.dart';
 import 'ui/pair_screen.dart';
+import 'ui/send_screen.dart';
 import 'ui/settings_screen.dart';
 import 'ui/theme.dart';
 
@@ -36,8 +38,35 @@ class Shell extends StatefulWidget {
   State<Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<Shell> {
+class _ShellState extends State<Shell> with WidgetsBindingObserver {
   int _tab = 0;
+  late final SendController _send = SendController(widget.link);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.link.addListener(_send.cleanupIfIdle);
+    _pullShared();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.link.removeListener(_send.cleanupIfIdle);
+    _send.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _pullShared();
+  }
+
+  /// Files shared to Solo from another app open the Send tab.
+  Future<void> _pullShared() async {
+    if (await _send.pullShared() > 0 && mounted) setState(() => _tab = 2);
+  }
 
   static const _planned = [
     ('Chat', 'Phase 4'),
@@ -53,8 +82,9 @@ class _ShellState extends State<Shell> {
           child: switch (_tab) {
             0 => _Home(link: widget.link),
             1 => _Devices(link: widget.link),
-            4 => SettingsScreen(link: widget.link),
-            _ => Center(child: Text('${_planned[_tab - 2].$1} · planned for ${_planned[_tab - 2].$2}')),
+            2 => SendScreen(controller: _send),
+            5 => SettingsScreen(link: widget.link),
+            _ => Center(child: Text('${_planned[_tab - 3].$1} · planned for ${_planned[_tab - 3].$2}')),
           },
         ),
         bottomNavigationBar: NavigationBar(
@@ -63,6 +93,7 @@ class _ShellState extends State<Shell> {
           destinations: const [
             NavigationDestination(icon: Icon(Icons.blur_on), label: 'Solo'),
             NavigationDestination(icon: Icon(Icons.devices), label: 'Devices'),
+            NavigationDestination(icon: Icon(Icons.upload_file), label: 'Send'),
             NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
             NavigationDestination(icon: Icon(Icons.checklist), label: 'Tasks'),
             NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),

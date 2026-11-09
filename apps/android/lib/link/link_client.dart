@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../relay/e2e.dart' as e2e;
 import '../relay/relay_client.dart';
 import 'discovery.dart';
+import 'file_sender.dart';
 import 'link_api.dart';
 import '../sync/sync_store.dart';
 import 'proof.dart';
@@ -41,25 +42,57 @@ class LinkClient extends LinkApi {
   /// Attach live peer/relay info (kept out of _copy so every state change stays fresh automatically).
   LinkState _withRelay(LinkState s) {
     final r = _relay;
-    if (r == null) return s;
     final lanOn = s.status == LinkStatus.connected && _desktopId != null;
-    final online = r.onlinePeerIds.toSet();
+    final online = r?.onlinePeerIds.toSet() ?? const <String>{};
     return LinkState(
       status: s.status, lastError: s.lastError, desktopName: s.desktopName, host: s.host, port: s.port,
       deviceName: s.deviceName, sas: s.sas, autoPair: s.autoPair, discovered: s.discovered, settings: s.settings,
       lastSync: s.lastSync,
       peers: [
-        for (final p in r.peers)
+        for (final p in r?.peers ?? const <RelayPeer>[])
           PeerInfo(
             id: p.id, name: p.name, kind: p.kind,
             online: online.contains(p.id) || (lanOn && p.id == _desktopId),
             via: (lanOn && p.id == _desktopId) ? 'lan' : online.contains(p.id) ? 'relay' : null,
           ),
       ],
-      relayUrl: r.url,
-      relayStatus: r.status.name,
+      relayUrl: r?.url,
+      relayStatus: r?.status.name ?? 'off',
+      transfers: _files.transfers,
     );
   }
+
+  late final FileSender _files = FileSender(
+    send: _sendTo,
+    onChange: () => _set(_s),
+    peerName: (id) {
+      for (final p in _s.peers) {
+        if (p.id == id) return p.name;
+      }
+      return id == _desktopId ? (_s.desktopName ?? 'your computer') : 'your computer';
+    },
+  );
+
+  /// Delivers to one device: over the LAN link when it is the connected desktop, otherwise through the relay.
+  Future<bool> _sendTo(String peerId, String type, Map<String, dynamic> payload) async {
+    final ws = _ws;
+    if (peerId == _desktopId && ws != null && _s.status == LinkStatus.connected) {
+      ws.add(jsonEncode(_frame(await _id(), type, payload)));
+      return true;
+    }
+    return await _relay?.send(peerId, type, payload) ?? false;
+  }
+
+  @override
+  Future<String?> sendFile(String peerId, String path, String name) async {
+    await _files.sendFile(peerId, path, name);
+    return _files.lastRefusal;
+  }
+
+  @override
+  Future<void> cancelTransfer(String id) async => _files.cancel(id);
+  @override
+  Future<void> clearTransfers() async => _files.clearFinished();
 
   // Secrets / identity (not part of LinkState).
   String? _token, _certFp, _desktopId, _deviceId;
@@ -174,7 +207,10 @@ class LinkClient extends LinkApi {
         _set(_s);
       },
       onStatus: (_) => _set(_s),
-      onDisconnected: (_) => _set(_s),
+      onDisconnected: (id) {
+        _files.peerLost(id);
+        _set(_s);
+      },
       onConnected: (peer) {
         // exchange full state with the device that just came online; last-writer-wins makes both converge
         for (final d in sync.all()) {
@@ -183,6 +219,10 @@ class LinkClient extends LinkApi {
         _set(_copy(lastSync: DateTime.now().millisecondsSinceEpoch));
       },
       onMessage: (from, env) {
+        if ((env['type'] as String).startsWith('file.')) {
+          _files.handle(from, env['type'] as String, Map<String, dynamic>.from(env['payload'] as Map));
+          return;
+        }
         if (env['type'] != 'sync.delta') return;
         final d = SyncDelta.fromPayload(env['payload']);
         if (d == null) return;
@@ -391,6 +431,8 @@ class LinkClient extends LinkApi {
                 _applyingFrom = null;
               }
             }
+          case 'file.reply' || 'file.ack' || 'file.result' || 'file.cancel':
+            if (_desktopId != null) _files.handle(_desktopId!, m['type'] as String, pl);
           case 'pair.reject':
             final r = pl['reason'] as String;
             if (r == 'revoked' || r == 'unknown_device') {
@@ -413,6 +455,7 @@ class LinkClient extends LinkApi {
   void _onClosed() {
     _hb?.cancel();
     _ws = null;
+    if (_desktopId != null) _files.peerLost(_desktopId!);
     if (_disposed || !_s.paired || _pairing) return;
     _set(_copy(status: LinkStatus.offline));
     _retry?.cancel();
