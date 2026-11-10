@@ -47,3 +47,6 @@
 - Send files from the phone to the computer: Send tab and Android Share menu on the phone; `file.offer/reply/chunk/ack/end/result/cancel` protocol (48 KB chunks, window of 8, SHA-256 verified, 2 GB limit) over the LAN link or the relay; desktop Inbox saves to DownloadsSolo (safe names, never overwrites, never opens), listed under Files > Received. See docs/TRANSFER.md.
 - Send files from the computer to the phone: Files > Send to your phone (choose or drop files, progress, cancel); the phone receives in its background service into app storage, with Open / Save to Downloads / Delete. Same protocol and safety rules as the other direction.
 
+
+## Packaging
+- Windows installer (npm run dist -w @solo/desktop): NSIS, 64-bit only (the speech engine, onnxruntime-node, has no 32-bit Windows build). Unsigned, so SmartScreen shows "unknown publisher" on first run.
