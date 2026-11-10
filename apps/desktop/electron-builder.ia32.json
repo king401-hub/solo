@@ -1,0 +1,40 @@
+{
+  "appId": "com.solo.desktop",
+  "productName": "Solo",
+  "artifactName": "Solo-Setup-${version}-ia32.${ext}",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "out/**",
+    "package.json",
+    "!**/onnxruntime-node/bin/**"
+  ],
+  "asarUnpack": [
+    "**/sharp/**",
+    "**/@img/**"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/syncthing-ia32",
+      "to": "syncthing"
+    }
+  ],
+  "win": {
+    "signAndEditExecutable": false,
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "ia32"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true
+  }
+}

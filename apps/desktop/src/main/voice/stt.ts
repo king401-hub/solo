@@ -1,3 +1,4 @@
+import { loadTransformers } from "./engine";
 /** Local speech-to-text (Whisper via transformers.js / ONNX). No network except the one-time model download. */
 export interface Stt {
   /** Resolves when the model is loaded (downloads on first use). */
@@ -26,7 +27,7 @@ export function createStt(opts: { cacheDir: string; model?: string }): Stt {
   let loading: Promise<(audio: Float32Array, o?: object) => Promise<{ text: string }>> | undefined;
   const load = (onProgress?: (pct: number) => void) =>
     (loading ??= (async () => {
-      const { pipeline, env } = await import("@huggingface/transformers");
+      const { pipeline, env } = await loadTransformers();
       env.cacheDir = opts.cacheDir;
       const p = await pipeline("automatic-speech-recognition", model, {
         dtype: "q8",

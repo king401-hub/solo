@@ -8,7 +8,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "dist": "electron-vite build && electron-builder --win nsis --x64 --publish never"
+    "dist": "electron-vite build && electron-builder --config electron-builder.json -c.electronDist=../../node_modules/electron/dist --win nsis --x64 --publish never",
+    "dist:ia32": "electron-vite build && electron-builder --config electron-builder.ia32.json --win nsis --ia32 --publish never"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.2",
@@ -36,49 +37,5 @@
   "author": {
     "name": "Solomon"
   },
-  "homepage": "https://github.com/king401-hub/solo",
-  "build": {
-    "appId": "com.solo.desktop",
-    "productName": "Solo",
-    "artifactName": "Solo-Setup-${version}-x64.${ext}",
-    "electronDist": "../../node_modules/electron/dist",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "out/**",
-      "package.json",
-      "!**/onnxruntime-node/bin/napi-v6/darwin/**",
-      "!**/onnxruntime-node/bin/napi-v6/linux/**",
-      "!**/onnxruntime-node/bin/napi-v6/win32/arm64/**"
-    ],
-    "asarUnpack": [
-      "**/onnxruntime-node/**",
-      "**/sharp/**",
-      "**/@img/**"
-    ],
-    "extraResources": [
-      {
-        "from": "resources/syncthing",
-        "to": "syncthing"
-      }
-    ],
-    "win": {
-      "signAndEditExecutable": false,
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
-    }
-  }
+  "homepage": "https://github.com/king401-hub/solo"
 }

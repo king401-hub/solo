@@ -1,0 +1,43 @@
+{
+  "appId": "com.solo.desktop",
+  "productName": "Solo",
+  "artifactName": "Solo-Setup-${version}-x64.${ext}",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "out/**",
+    "package.json",
+    "!**/onnxruntime-node/bin/napi-v6/darwin/**",
+    "!**/onnxruntime-node/bin/napi-v6/linux/**",
+    "!**/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+  ],
+  "asarUnpack": [
+    "**/onnxruntime-node/**",
+    "**/sharp/**",
+    "**/@img/**"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/syncthing",
+      "to": "syncthing"
+    }
+  ],
+  "win": {
+    "signAndEditExecutable": false,
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true
+  }
+}

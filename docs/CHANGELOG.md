@@ -50,3 +50,4 @@
 
 ## Packaging
 - Windows installer (npm run dist -w @solo/desktop): NSIS, 64-bit only (the speech engine, onnxruntime-node, has no 32-bit Windows build). Unsigned, so SmartScreen shows "unknown publisher" on first run.
+- 32-bit Windows installer (npm run dist:ia32 -w @solo/desktop, after tools/fetch-syncthing-ia32.ps1): everything works except offline voice recognition, which needs a 64-bit-only engine; there Solo says so instead of failing.

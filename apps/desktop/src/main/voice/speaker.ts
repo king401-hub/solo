@@ -1,3 +1,4 @@
+import { loadTransformers } from "./engine";
 /**
  * Local speaker embedding ("voice print"): turns speech into a 512-number vector that is close for the same person and
  * far for different people. Runs fully offline (WavLM-base-plus speaker-verification model via transformers.js / ONNX);
@@ -18,7 +19,7 @@ export function createSpeaker(opts: { cacheDir: string; model?: string }): Speak
   let loading: Promise<{ processor: (a: Float32Array) => Promise<unknown>; model: (i: unknown) => Promise<{ embeddings: Tensor }> }> | undefined;
   const load = (onProgress?: (pct: number) => void) =>
     (loading ??= (async () => {
-      const t = await import("@huggingface/transformers");
+      const t = await loadTransformers();
       t.env.cacheDir = opts.cacheDir;
       const progress_callback = (e: { status?: string; progress?: number }) => {
         if (e.status === "progress" && typeof e.progress === "number") onProgress?.(Math.round(e.progress));
